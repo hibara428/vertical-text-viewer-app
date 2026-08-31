@@ -1,0 +1,80 @@
+---
+import "../styles/global.css";
+
+type Props = { title: string; description?: string };
+const { title, description } = Astro.props;
+const siteName = "青空文庫ビューアー";
+---
+
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title === siteName ? title : `${title} — ${siteName}`}</title>
+    {description && <meta name="description" content={description} />}
+  </head>
+  <body>
+    <header class="site-header">
+      <a href="/" class="site-name">{siteName}</a>
+    </header>
+    <main>
+      <slot />
+    </main>
+
+    <style is:global>
+      :root {
+        --ink: #1a1a1a;
+        --muted: #666;
+        --line: #ddd;
+        --paper: #fdfcf8;
+        --accent: #7a4b3a;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+        line-height: 1.7;
+      }
+      a {
+        color: var(--accent);
+      }
+
+      .site-header {
+        padding: 0.9rem 1.25rem;
+        border-bottom: 1px solid var(--line);
+        background: #fff;
+      }
+      .site-name {
+        font-weight: 600;
+        text-decoration: none;
+        color: var(--ink);
+      }
+
+      main {
+        max-width: 48rem;
+        margin-inline: auto;
+        padding: 1.5rem 1.25rem 4rem;
+      }
+
+      h1 {
+        font-size: 1.4rem;
+        margin: 0 0 0.25rem;
+      }
+      .lead {
+        margin: 0 0 1.5rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .breadcrumb {
+        margin: 0 0 1rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+    </style>
+  </body>
+</html>

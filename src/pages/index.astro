@@ -1,0 +1,24 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import WorkSearch from "../components/WorkSearch.astro";
+---
+
+<BaseLayout
+  title="青空文庫ビューアー"
+  description="青空文庫の作品を読めるビューアーです。作品名・著者名から探せます。"
+>
+  <h1>青空文庫ビューアー</h1>
+  <p class="lead">著作権の切れた青空文庫の作品を読めます。</p>
+
+  <WorkSearch autofocus>
+    <p class="browse" slot="aside">または <a href="/authors">五十音から探す</a></p>
+  </WorkSearch>
+</BaseLayout>
+
+<style>
+  .browse {
+    margin: 0;
+    font-weight: normal;
+    color: var(--muted);
+  }
+</style>

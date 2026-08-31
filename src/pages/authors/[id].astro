@@ -1,0 +1,55 @@
+---
+/** 著者ページ。その著者の作品を並べる。 */
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { ROWS, authorsInRow, worksOf, type Author } from "../../lib/content/browse";
+
+export function getStaticPaths() {
+  return ROWS.flatMap((row) =>
+    authorsInRow(row.id).map((author) => ({
+      params: { id: author.id },
+      props: { author },
+    })),
+  );
+}
+
+const { author } = Astro.props as { author: Author };
+const works = worksOf(author.id);
+---
+
+<BaseLayout title={author.name}>
+  <p class="breadcrumb"><a href="/authors">五十音から探す</a></p>
+
+  <h1>{author.name}</h1>
+  <p class="lead">{author.nameKana} · {works.length}作品</p>
+
+  <ul class="list">
+    {
+      works.map((w) => (
+        <li>
+          <a href={`/works/${w.id}`}>{w.title}</a>
+          {w.titleKana && <span class="meta">{w.titleKana}</span>}
+        </li>
+      ))
+    }
+  </ul>
+</BaseLayout>
+
+<style>
+  .list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .list li {
+    display: flex;
+    gap: 0.6rem;
+    align-items: baseline;
+    flex-wrap: wrap;
+    padding: 0.5rem 0.25rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .meta {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+</style>

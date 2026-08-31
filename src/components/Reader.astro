@@ -1,0 +1,340 @@
+---
+/**
+ * 本文ビューア。読み方モードを切り替えられる。
+ *
+ * モードの違いは原則 CSS の切り替えで表現し、組版はブラウザに任せる。
+ * 各モードの実現方式は docs/viewer-design.md を参照。
+ */
+type Props = {
+  bodyHtml: string;
+  title: string;
+  author: string;
+  /** 底本情報。本文の続きとして最後に置く */
+  colophon: string[];
+  cardUrl: string;
+};
+const { bodyHtml, title, author, colophon, cardUrl } = Astro.props;
+
+/** 並びは既定のものから順に置く */
+const MODES = [
+  { id: "vertical-page", label: "ページ" },
+  { id: "vertical-scroll", label: "段組" },
+  { id: "horizontal", label: "横" },
+] as const;
+
+const DEFAULT_MODE = "vertical-page";
+---
+
+<!--
+  呼び出し側から渡されたヘッダーの中に操作を差し込む。
+  ヘッダーを二段にしないため。
+-->
+<slot name="chrome" />
+
+<div id="reader" data-mode={DEFAULT_MODE}>
+  <article class="body">
+    <!-- 本文の書き出しにも作品名と著者名を置く。書籍の扉にあたる -->
+    <h2 class="work-title">{title}</h2>
+    <p class="work-author">{author}</p>
+    <Fragment set:html={bodyHtml} />
+
+    <!-- 底本情報は本文の続き。ページモードでも最後の紙面として現れる -->
+    <footer class="colophon">
+      {colophon.map((line) => <p>{line}</p>)}
+      <p><a href={cardUrl}>青空文庫の図書カード</a></p>
+    </footer>
+  </article>
+</div>
+
+<template id="reader-controls">
+  <nav class="modes" aria-label="読み方">
+    {
+      MODES.map((m) => (
+        <button type="button" data-mode={m.id} aria-pressed="false">
+          {m.label}
+        </button>
+      ))
+    }
+  </nav>
+</template>
+
+<script>
+  const reader = document.getElementById("reader")!;
+  const body = reader.querySelector<HTMLElement>(".body")!;
+
+  // 操作をヘッダーの中へ移す。ヘッダーは呼び出し側が組み立てるため、
+  // ここでは差し込む位置だけを決める
+  const template = document.getElementById("reader-controls") as HTMLTemplateElement;
+  document.querySelector(".chrome")!.append(template.content.cloneNode(true));
+  template.remove();
+
+  const buttons = document.querySelectorAll<HTMLButtonElement>(".modes [data-mode]");
+  const KEY = "reading-mode";
+
+  /**
+   * モードを切り替える。
+   *
+   * 読書位置の保持はいまは行わず、常に先頭から表示する。ビューアの構造が
+   * まだ固まっておらず、先に作り込んでも土台が変われば作り直しになるため。
+   */
+  const apply = (mode: string) => {
+    reader.dataset.mode = mode;
+    // 底本情報などビューア外の要素も本文幅にそろえられるようにする
+    document.body.dataset.readingMode = mode;
+    for (const b of buttons) b.setAttribute("aria-pressed", String(b.dataset.mode === mode));
+    try {
+      localStorage.setItem(KEY, mode);
+    } catch {
+      // 保存できなくても読書は続けられる
+    }
+
+    fitLineLength();
+    toStart();
+  };
+
+  for (const b of buttons) b.addEventListener("click", () => apply(b.dataset.mode!));
+
+  /**
+   * ページめくりは画面幅ぶんスクロールする。
+   *
+   * 縦書きは右から左へ進むため、スクロール範囲の左端(scrollLeft = 0)が作品の
+   * 末尾、右端(最大値)が先頭になる。したがって「次」は scrollLeft を減らす。
+   */
+  const turn = (dir: "prev" | "next") => {
+    const step = reader.clientWidth * (dir === "next" ? -1 : 1);
+    reader.scrollBy({ left: step, behavior: "smooth" });
+  };
+
+  /**
+   * 1行の長さを文字送りの整数倍にそろえる。
+   * 端数があると行末の文字が枠からはみ出て切れる。
+   */
+  const fitLineLength = () => {
+    if (reader.dataset.mode !== "vertical-page") {
+      body.style.removeProperty("inline-size");
+      reader.style.removeProperty("height");
+      return;
+    }
+    // 枠は画面からヘッダーを引いた高さ。CSS の固定値だと実際のヘッダーとずれる
+    const chrome = document.querySelector<HTMLElement>(".chrome");
+    reader.style.height = `${window.innerHeight - (chrome?.offsetHeight ?? 0)}px`;
+    const readerStyle = getComputedStyle(reader);
+    const bodyStyle = getComputedStyle(body);
+    // 本文自身の余白(縦書きでは行頭・行末にあたる)も引く
+    const inner =
+      reader.clientHeight -
+      parseFloat(readerStyle.paddingTop) -
+      parseFloat(readerStyle.paddingBottom) -
+      parseFloat(bodyStyle.paddingInlineStart) -
+      parseFloat(bodyStyle.paddingInlineEnd);
+    const fontSize = parseFloat(bodyStyle.fontSize);
+    // 縦書きでは inline方向が縦。1行の長さはこちらで決まる
+    body.style.inlineSize = `${Math.floor(inner / fontSize) * fontSize}px`;
+  };
+
+  /** ページめくりモードでは先頭＝右端なので、そこへ寄せる */
+  const toStart = () => {
+    if (reader.dataset.mode === "vertical-page") {
+      reader.scrollLeft = reader.scrollWidth;
+    } else {
+      reader.scrollTo(0, 0);
+      window.scrollTo(0, 0);
+    }
+  };
+  let saved: string | null = null;
+  try {
+    saved = localStorage.getItem(KEY);
+  } catch {
+    // 読めなければ既定のモードで始める
+  }
+  // 画面の大きさが変わると1行に入る文字数も変わるため、測り直す
+  let resizing: number | undefined;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizing);
+    resizing = window.setTimeout(fitLineLength, 200);
+  });
+
+  apply(saved ?? "vertical-page");
+  toStart();
+</script>
+
+<style is:global>
+  .modes {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    font-family: "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    font-size: 0.8rem;
+  }
+  .modes button {
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: #fff;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  .modes button:hover {
+    border-color: var(--accent);
+  }
+  .modes button[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  /* ── 本文の体裁 ──
+     モードごとに変えたい値は変数にしておき、各モードのブロックで上書きする。
+     ここに直接書くと、あるモードの都合が他のモードへ漏れる。 */
+  #reader {
+    /* 余白は本文の文字を基準にする。文字サイズを変えても比率が保たれる。
+       rem はルート要素基準なので本文に連動しない */
+    font-size: 1.125rem;
+    /* ヘッダーと本文のあいだ。3モードで同じだけ空ける */
+    --space-top: 4em;
+    /* 本文の左右 */
+    --space-side: 1.5em;
+  }
+
+  .body {
+    /* 扉(作品名・著者名)の大きさ。既定は本文と同じ */
+    --title-size: 1em;
+    --author-size: 1em;
+    /* 1行の長さ。横書きは幅、縦書きは段の高さとして使う。
+       文字数を基準にしているので、文字を大きくしても行長が保たれる */
+    --measure: 38em;
+    /* 行間。縦書きは行が横に並ぶため、詰めすぎると隣の行と混ざる */
+    --leading: 1.9;
+
+    font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+    /* 読書用に本文を大きく取る */
+    font-size: 1.125rem;
+    line-height: var(--leading);
+  }
+  .body p {
+    margin: 0;
+  }
+  /* 本文冒頭の扉 */
+  .body .work-title {
+    margin: 0;
+    font-size: var(--title-size);
+    font-weight: normal;
+  }
+  .body .work-author {
+    margin: 0 0 3em;
+    font-size: var(--author-size);
+  }
+  /* 段組では著者名を行末(下)にそろえ、本文とのあいだに一行ぶん空ける */
+  #reader[data-mode="vertical-scroll"] .work-author {
+    margin-block-end: 1em;
+    text-align: end;
+  }
+  #reader[data-mode="vertical-scroll"] .work-author::after {
+    content: "";
+    display: block;
+    block-size: 1em;
+  }
+  .body rt {
+    font-size: 0.5em;
+  }
+  .body .boten {
+    font-style: normal;
+    text-emphasis: filled sesame;
+  }
+  .body .gaiji {
+    /* 面区点→Unicode変換までの暫定表示 */
+    border-bottom: 1px dotted #999;
+  }
+  .body .heading {
+    margin: 0;
+    font-size: 1.1em;
+    font-weight: normal;
+    /* 段組みの列が見出しの直後で切れないようにする */
+    break-after: avoid;
+  }
+  /* 底本情報。本文の続きとして小さく組む */
+  .body .colophon {
+    margin-block-start: 4em;
+    font-size: 0.72em;
+    color: var(--muted);
+  }
+  .body .colophon p {
+    margin: 0;
+  }
+
+  /* 空行(場面転換)の間隔。縦横どちらの組みでも進行方向に空ける */
+  .body .gap {
+    block-size: 1.9em;
+  }
+
+  /* ── モード1: 横書き・縦スクロール ── */
+  #reader[data-mode="horizontal"] {
+    padding: var(--space-top) var(--space-side) 3rem;
+  }
+  #reader[data-mode="horizontal"] .body {
+    /* 横書きは行の位置がずれないので、扉を大きく組める */
+    --title-size: 1.6em;
+    --author-size: 1.05em;
+    /* 横書きの行間は縦書きほど広げなくても行を追える */
+    --leading: 1.8;
+
+    max-width: var(--measure);
+    margin-inline: auto;
+  }
+
+  /* ── モード2: 縦書き・縦スクロール ──
+     列を画面幅で折り返し、その帯を上から下へ積む。
+
+     縦書きでは inline方向=縦、block方向=横 になる。段組みの列は inline方向
+     (＝縦)に積まれ、折り返しは block方向(＝横)のサイズで決まる。
+     そのため width を画面幅に固定し、height は内容に応じて伸ばす。
+     column-width は inline方向の寸法なので「帯の高さ」を指す。 */
+  #reader[data-mode="vertical-scroll"] {
+    /* 上下に余裕を持たせ、横幅は横書きと同じ読みやすい幅にそろえる。
+       最終行が帯の途中で終わると下に空きが残るため、下は詰めておく */
+    /* 上の余白は本文側(行頭)で取るため、ここでは付けない */
+    padding: 0 var(--space-side) 1rem;
+  }
+  #reader[data-mode="vertical-scroll"] .body {
+    writing-mode: vertical-rl;
+    /* 縦書きでは上下が inline 方向。padding-top は効かないため、
+       行の始まり(上)に余白を取る */
+    padding-block-start: 0;
+    padding-inline-start: var(--space-top);
+    /* block方向(＝横)のサイズが折り返し位置を決める。
+       inline方向(＝縦)は内容に応じて伸び、帯が下へ積まれる */
+    inline-size: max-content;
+    /* 縦書きでは文字サイズを変えると行の位置がずれるため、扉は本文と同じ大きさ
+       (--title-size / --author-size は既定の 1em のまま) */
+
+    /* 帯の奥行き。横書きの本文幅にそろえる */
+    block-size: min(var(--measure), 100%);
+    max-block-size: 100%;
+    /* 縦書きでは block方向が横なので、そちらで中央に寄せる */
+    margin-block: auto;
+    /* 1行の長さ。inline方向の寸法なので「帯の高さ」を指す。
+       文字送りの整数倍にしないと行末に半端な余りが出て、空行のように見える。
+       em 単位で指定しているため 1em = 1文字ぶんになり、端数が出ない */
+    column-width: var(--measure);
+    column-gap: 3rem;
+    /* balance にすると各帯へ均等に配られ、最後の帯だけ空くのを避けられる */
+    column-fill: balance;
+  }
+
+  /* ── モード3: 縦書き・横ページめくり ──
+     枠を画面サイズに固定し、その中で本文が右から左へ伸びる。 */
+  #reader[data-mode="vertical-page"] {
+    height: calc(100dvh - var(--chrome, 3rem));
+    /* 上の余白は本文側(行頭)で取るため、ここでは付けない */
+    padding: 0 var(--space-side) 1.5rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  #reader[data-mode="vertical-page"] .body {
+    writing-mode: vertical-rl;
+    /* 縦書きでは上下が inline 方向。行の始まり(上)と終わり(下)に余白を取る */
+    padding-inline: var(--space-top);
+    height: 100%;
+  }
+</style>

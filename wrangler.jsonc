@@ -1,0 +1,21 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"compatibility_date": "2026-08-28",
+	"compatibility_flags": ["global_fetch_strictly_public"],
+	"name": "vertical-text-viewer-app",
+	"main": "@astrojs/cloudflare/entrypoints/server",
+	"assets": {
+		"directory": "./dist",
+		"binding": "ASSETS"
+	},
+	"observability": {
+		"enabled": true
+	},
+	// 取得・変換済みの本文を保存する。詳細は docs/design.md「キャッシュ」
+	"kv_namespaces": [
+		{
+			"binding": "WORK_TEXT",
+			"id": "work_text"
+		}
+	]
+}

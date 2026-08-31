@@ -1,0 +1,186 @@
+---
+/**
+ * 作品名・著者名の検索。
+ *
+ * Pagefind のインデックスは astro build のあとに生成されるため、
+ * dev サーバーでは動かない(build → preview で確認する)。
+ */
+type Props = { autofocus?: boolean };
+const { autofocus = false } = Astro.props;
+---
+
+<form class="search" role="search" onsubmit="return false">
+  <label class="search-label" for="work-search">
+    作品名・著者名で検索
+    <slot name="aside" />
+  </label>
+  <input
+    id="work-search"
+    class="search-input"
+    type="search"
+    name="q"
+    placeholder="羅生門 / あくたがわ / 芥川竜之介"
+    autocomplete="off"
+    autofocus={autofocus}
+  />
+</form>
+
+<p class="search-status" aria-live="polite"></p>
+<ul class="search-results"></ul>
+
+<script>
+  type PagefindResult = {
+    id: string;
+    data: () => Promise<{ url: string; meta: Record<string, string> }>;
+  };
+  type Pagefind = {
+    search: (q: string) => Promise<{ results: PagefindResult[] }>;
+    init?: () => Promise<void>;
+  };
+
+  /** 一度に表示する件数。全件は多すぎるため */
+  const LIMIT = 30;
+
+  /**
+   * Pagefind のインデックスは astro build のあとに生成されるため、Vite に解決させない。
+   * `@vite-ignore` を付けても Vite はモジュール内の import() を書き換えて
+   * `__VITE_PRELOAD__` を注入するため、静的解析から隠して素の import を実行させる。
+   */
+  const importAtRuntime = new Function("url", "return import(url)") as (
+    url: string,
+  ) => Promise<unknown>;
+
+  let engine: Pagefind | null = null;
+  const load = async (): Promise<Pagefind> => {
+    if (engine) return engine;
+    engine = (await importAtRuntime("/pagefind/pagefind.js")) as Pagefind;
+    await engine.init?.();
+    return engine;
+  };
+
+  const input = document.querySelector<HTMLInputElement>(".search-input")!;
+  const status = document.querySelector<HTMLElement>(".search-status")!;
+  const list = document.querySelector<HTMLElement>(".search-results")!;
+
+  let seq = 0;
+  const run = async (query: string) => {
+    const mine = ++seq;
+    if (!query.trim()) {
+      status.textContent = "";
+      list.replaceChildren();
+      return;
+    }
+    status.textContent = "検索中…";
+
+    let results: PagefindResult[];
+    let shown: Awaited<ReturnType<PagefindResult["data"]>>[];
+    try {
+      const pagefind = await load();
+      ({ results } = await pagefind.search(query));
+      if (mine !== seq) return; // 入力が進んでいたら破棄
+      shown = await Promise.all(results.slice(0, LIMIT).map((r) => r.data()));
+    } catch (e) {
+      if (mine !== seq) return;
+      status.textContent = `検索を実行できませんでした: ${(e as Error).message}`;
+      list.replaceChildren();
+      return;
+    }
+    if (mine !== seq) return;
+
+    status.textContent =
+      results.length === 0
+        ? "見つかりませんでした。"
+        : `${results.length}件` + (results.length > LIMIT ? ` (上位${LIMIT}件を表示)` : "");
+
+    list.replaceChildren(
+      ...shown.map((d) => {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.href = d.url;
+        a.textContent = d.meta.title ?? d.url;
+        const by = document.createElement("span");
+        by.className = "meta";
+        by.textContent = d.meta.author ? `— ${d.meta.author}` : "";
+        li.append(a, by);
+        return li;
+      }),
+    );
+  };
+
+  // 入力のたびに検索するが、打鍵中は待つ
+  let timer: number | undefined;
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = window.setTimeout(() => run(input.value), 200);
+  });
+
+  // Enter では入力待ちを飛ばして即実行する
+  document.querySelector<HTMLFormElement>(".search")!.addEventListener("submit", () => {
+    clearTimeout(timer);
+    run(input.value);
+  });
+
+  // ?q= で直接開けるようにする
+  const initial = new URLSearchParams(location.search).get("q");
+  if (initial) {
+    input.value = initial;
+    run(initial);
+  }
+</script>
+
+<style>
+  .search {
+    margin-bottom: 1rem;
+  }
+  /* ラベルと補助リンクを1行に収め、入力欄と結果を近づける */
+  .search-label {
+    display: flex;
+    gap: 0.75rem;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    margin-bottom: 0.35rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .search-input {
+    display: block;
+    width: 100%;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    font-size: 1rem;
+    font-family: inherit;
+  }
+  .search-input:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+  }
+  .search-status {
+    margin: 0.5rem 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .search-results {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .search-results li {
+    display: flex;
+    gap: 0.6rem;
+    align-items: baseline;
+    flex-wrap: wrap;
+    padding: 0.5rem 0.25rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .search-results li a {
+    /* 作品名が短くても著者名と詰まらないようにする */
+    flex: 0 1 auto;
+  }
+  .meta {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+</style>

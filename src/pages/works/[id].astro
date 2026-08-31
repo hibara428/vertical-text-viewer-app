@@ -1,0 +1,154 @@
+---
+// 作品ページ。リクエストのたびにエッジで本文を取得・パースする。
+import { env } from "cloudflare:workers";
+import Reader from "../../components/Reader.astro";
+import { loadWorkText } from "../../lib/content/work-text";
+import { findWork, type Person } from "../../lib/content/index-lookup";
+import people from "../../data/index/people.json";
+import { parse } from "../../lib/aozora/parse";
+import "../../styles/global.css";
+
+export const prerender = false;
+
+const id = Astro.params.id!;
+const work = await findWork(id);
+if (!work) return new Response("作品が見つかりません", { status: 404 });
+
+const loaded = await loadWorkText(work.id, work.sourceUrl, env.WORK_TEXT);
+const parsed = parse(loaded.text);
+
+const directory = people as Record<string, Person>;
+const credits = work.contributors.map((c) => ({
+  role: c.role,
+  personId: c.personId,
+  name: directory[c.personId]?.name ?? c.personId,
+}));
+const author = credits.find((c) => c.role === "著者") ?? credits[0];
+---
+
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{work.title} — {author?.name ?? ""}</title>
+    <meta name="description" content={`${work.title}(${author?.name ?? ""})を読む。`} />
+  </head>
+  <body>
+    <Reader
+      bodyHtml={parsed.bodyHtml}
+      title={work.title}
+      author={author?.name ?? ""}
+      colophon={parsed.colophon}
+      cardUrl={work.cardUrl}
+    >
+      <header class="chrome" slot="chrome">
+        <a href="/" class="home">青空文庫ビューアー</a>
+        <div class="work">
+          <h1>{work.title}</h1>
+          <span class="credits">
+            {
+              credits.map((c) => (
+                <span>
+                  <a href={`/authors/${c.personId}`}>{c.name}</a>
+                  {c.role !== "著者" && `(${c.role})`}
+                </span>
+              ))
+            }
+          </span>
+        </div>
+      </header>
+    </Reader>
+
+    <style is:global>
+      :root {
+        --ink: #1a1a1a;
+        --muted: #666;
+        --line: #ddd;
+        --paper: #fdfcf8;
+        --accent: #7a4b3a;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      /* サイトのUIはゴシック。明朝は本文にだけ当てる(Reader 側) */
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+        line-height: 1.7;
+      }
+      a {
+        color: var(--accent);
+      }
+
+      /* 読書中も操作できるよう画面上部に留める */
+      .chrome {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        display: flex;
+        gap: 0.9rem;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 0.6rem 1rem;
+        border-bottom: 1px solid var(--line);
+        background: #fff;
+      }
+      /* 左にサイト名、中央に作品情報、右にビューア操作 */
+      /* トップのヘッダーと同じ体裁にそろえる */
+      .chrome .home {
+        font-weight: 600;
+        text-decoration: none;
+        color: var(--ink);
+        white-space: nowrap;
+      }
+      /* 作品情報は中央に置き、本文と同じ明朝で組む */
+      .chrome .work {
+        display: flex;
+        gap: 0.6rem;
+        align-items: baseline;
+        justify-content: center;
+        flex-wrap: wrap;
+        text-align: center;
+        font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+      }
+      /* 左右のブロックを同じ幅にして、作品情報を画面中央にそろえる */
+      .chrome .home,
+      .chrome .modes {
+        flex: 1 1 0;
+      }
+      .chrome .modes {
+        justify-content: flex-end;
+      }
+      .chrome h1 {
+        margin: 0;
+        font-size: 1.05rem;
+      }
+      .chrome .credits {
+        display: flex;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+      }
+
+      .colophon {
+        /* 本文と罫線のあいだを空ける。読み終えてから底本情報へ移るため */
+        margin-block-start: 4rem;
+        padding: 1.5rem 1.5rem 3rem;
+        border-top: 1px solid var(--line);
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+      /* 各行が折り返さない幅の塊を中央に置き、行そのものは左そろえにする。
+         最長行(青空文庫の作成ファイル注記)でも画面に収まる */
+      .colophon-inner {
+        width: max-content;
+        max-width: 100%;
+        margin-inline: auto;
+      }
+      .colophon p {
+        margin: 0;
+      }
+    </style>
+  </body>
+</html>
