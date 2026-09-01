@@ -15,14 +15,20 @@ type Props = {
 };
 const { bodyHtml, title, author, colophon, cardUrl } = Astro.props;
 
-/** 並びは既定のものから順に置く */
+/**
+ * 読み方モード。並びは将来の姿にしておき、未実装のものは出さない。
+ *
+ * ページ(1画面ぶんずつ区切ってめくる)は本文を塊に分ける処理が要るため未実装。
+ * いまの縦書きは区切りのない連続スクロールなので「横スクロール」と呼ぶ。
+ */
 const MODES = [
-  { id: "vertical-page", label: "ページ" },
-  { id: "vertical-scroll", label: "段組" },
-  { id: "horizontal", label: "横" },
+  { id: "vertical-page", label: "ページ", ready: false },
+  { id: "vertical-scroll-x", label: "横長", ready: true },
+  { id: "vertical-scroll", label: "縦段組", ready: true },
+  { id: "horizontal", label: "ブログ", ready: true },
 ] as const;
 
-const DEFAULT_MODE = "vertical-page";
+const DEFAULT_MODE = "vertical-scroll-x";
 ---
 
 <!--
@@ -49,7 +55,7 @@ const DEFAULT_MODE = "vertical-page";
 <template id="reader-controls">
   <nav class="modes" aria-label="読み方">
     {
-      MODES.map((m) => (
+      MODES.filter((m) => m.ready).map((m) => (
         <button type="button" data-mode={m.id} aria-pressed="false">
           {m.label}
         </button>
@@ -110,31 +116,34 @@ const DEFAULT_MODE = "vertical-page";
    * 端数があると行末の文字が枠からはみ出て切れる。
    */
   const fitLineLength = () => {
-    if (reader.dataset.mode !== "vertical-page") {
+    if (reader.dataset.mode !== "vertical-scroll-x") {
       body.style.removeProperty("inline-size");
       reader.style.removeProperty("height");
       return;
     }
     // 枠は画面からヘッダーを引いた高さ。CSS の固定値だと実際のヘッダーとずれる
     const chrome = document.querySelector<HTMLElement>(".chrome");
-    reader.style.height = `${window.innerHeight - (chrome?.offsetHeight ?? 0)}px`;
+    const frameHeight = window.innerHeight - (chrome?.offsetHeight ?? 0);
+    reader.style.height = `${frameHeight}px`;
+
+    // 枠の余白を引いた残りが本文に使える高さ
     const readerStyle = getComputedStyle(reader);
     const bodyStyle = getComputedStyle(body);
-    // 本文自身の余白(縦書きでは行頭・行末にあたる)も引く
-    const inner =
-      reader.clientHeight -
-      parseFloat(readerStyle.paddingTop) -
-      parseFloat(readerStyle.paddingBottom) -
-      parseFloat(bodyStyle.paddingInlineStart) -
-      parseFloat(bodyStyle.paddingInlineEnd);
+    const available =
+      frameHeight - parseFloat(readerStyle.paddingTop) - parseFloat(readerStyle.paddingBottom);
+
+    // 縦書きでは inline方向が縦。1行の長さはこちらで決まる。
+    // box-sizing: border-box なので、本文自身の余白は inline-size に含まれる
+    const padding =
+      parseFloat(bodyStyle.paddingInlineStart) + parseFloat(bodyStyle.paddingInlineEnd);
     const fontSize = parseFloat(bodyStyle.fontSize);
-    // 縦書きでは inline方向が縦。1行の長さはこちらで決まる
-    body.style.inlineSize = `${Math.floor(inner / fontSize) * fontSize}px`;
+    const lineLength = Math.floor((available - padding) / fontSize) * fontSize;
+    body.style.inlineSize = `${lineLength + padding}px`;
   };
 
   /** ページめくりモードでは先頭＝右端なので、そこへ寄せる */
   const toStart = () => {
-    if (reader.dataset.mode === "vertical-page") {
+    if (reader.dataset.mode === "vertical-scroll-x") {
       reader.scrollLeft = reader.scrollWidth;
     } else {
       reader.scrollTo(0, 0);
@@ -154,7 +163,10 @@ const DEFAULT_MODE = "vertical-page";
     resizing = window.setTimeout(fitLineLength, 200);
   });
 
-  apply(saved ?? "vertical-page");
+  // 選べないモードが保存されている場合(名前を変えた・まだ作っていない)は既定に戻す。
+  // 既定はボタンの先頭。フロントマターの定数はここから参照できない
+  const selectable = [...buttons].map((b) => b.dataset.mode!);
+  apply(saved && selectable.includes(saved) ? saved : selectable[0]!);
   toStart();
 </script>
 
@@ -222,15 +234,27 @@ const DEFAULT_MODE = "vertical-page";
     font-weight: normal;
   }
   .body .work-author {
-    margin: 0 0 3em;
+    /* 本文との間隔。margin-bottom だと縦書きで著者名の真下が空いてしまうので、
+       書字方向に追従する論理プロパティで指定する */
+    margin: 0;
+    margin-block-end: 3em;
     font-size: var(--author-size);
   }
-  /* 段組では著者名を行末(下)にそろえ、本文とのあいだに一行ぶん空ける */
-  #reader[data-mode="vertical-scroll"] .work-author {
+  /* 縦書きの2モードでは作品名を二文字ぶん下げる。行頭(縦書きでは上)からの字下げ */
+  #reader[data-mode="vertical-scroll"] .work-title,
+  #reader[data-mode="vertical-scroll-x"] .work-title {
+    text-indent: 2em;
+  }
+  /* 縦書きの2モードでは著者名を行末(下)にそろえ、本文とのあいだに一行ぶん空ける */
+  #reader[data-mode="vertical-scroll"] .work-author,
+  #reader[data-mode="vertical-scroll-x"] .work-author {
     margin-block-end: 1em;
     text-align: end;
+    /* 行末(縦書きでは下)を二文字ぶん空ける。作品名の字下げと同じ量 */
+    padding-inline-end: 2em;
   }
-  #reader[data-mode="vertical-scroll"] .work-author::after {
+  #reader[data-mode="vertical-scroll"] .work-author::after,
+  #reader[data-mode="vertical-scroll-x"] .work-author::after {
     content: "";
     display: block;
     block-size: 1em;
@@ -253,9 +277,12 @@ const DEFAULT_MODE = "vertical-page";
     /* 段組みの列が見出しの直後で切れないようにする */
     break-after: avoid;
   }
-  /* 底本情報。本文の続きとして小さく組む */
+  /* 底本情報。本文の続きとして小さく組む。
+     区切り線は進行方向の手前側に引くため、縦書きでは縦線、横書きでは横線になる */
   .body .colophon {
     margin-block-start: 4em;
+    padding-block-start: 3em;
+    border-block-start: 1px solid var(--line);
     font-size: 0.72em;
     color: var(--muted);
   }
@@ -281,6 +308,15 @@ const DEFAULT_MODE = "vertical-page";
 
     max-width: var(--measure);
     margin-inline: auto;
+  }
+  /* 区切り線は紙面を横切るものなので、本文の幅ではなく枠いっぱいに引く。
+     本文は中央寄せで幅が絞られているため、その分を左右に食み出させる */
+  #reader[data-mode="horizontal"] .colophon {
+    margin-inline: calc((100% - 100cqw) / 2);
+    padding-inline: calc((100cqw - 100%) / 2);
+  }
+  #reader[data-mode="horizontal"] {
+    container-type: inline-size;
   }
 
   /* ── モード2: 縦書き・縦スクロール ──
@@ -324,17 +360,15 @@ const DEFAULT_MODE = "vertical-page";
 
   /* ── モード3: 縦書き・横ページめくり ──
      枠を画面サイズに固定し、その中で本文が右から左へ伸びる。 */
-  #reader[data-mode="vertical-page"] {
-    height: calc(100dvh - var(--chrome, 3rem));
-    /* 上の余白は本文側(行頭)で取るため、ここでは付けない */
-    padding: 0 var(--space-side) 1.5rem;
+  #reader[data-mode="vertical-scroll-x"] {
+    /* 高さは実際のヘッダーを測って JS が入れる(fitLineLength)。
+       上下の余白はここで取り、残りを本文が行の長さに使う。
+       左右は本文が伸びる向きの両端になるので、上下と同じだけ空ける */
+    padding: var(--space-top);
     overflow-x: auto;
     overflow-y: hidden;
   }
-  #reader[data-mode="vertical-page"] .body {
+  #reader[data-mode="vertical-scroll-x"] .body {
     writing-mode: vertical-rl;
-    /* 縦書きでは上下が inline 方向。行の始まり(上)と終わり(下)に余白を取る */
-    padding-inline: var(--space-top);
-    height: 100%;
   }
 </style>
