@@ -1,0 +1,32 @@
+---
+/**
+ * ブログ: 横書き・縦スクロール。
+ *
+ * このモードのレイアウトはすべてここに閉じる。挙動は src/lib/reader/blog.ts。
+ */
+---
+
+<style is:global>
+  /* 本文の中身は親から差し込まれる(パーサーの出力)ため、Astro のスコープ付き
+     スタイルでは届かない。モード名で始まるセレクタに限って全域に置く */
+  #reader[data-mode="horizontal"] {
+    container-type: inline-size;
+    padding: var(--space-top) var(--space-side) 3rem;
+  }
+  #reader[data-mode="horizontal"] .body {
+    /* 横書きは行の位置がずれないので、扉を大きく組める */
+    --title-size: 1.6em;
+    --author-size: 1.05em;
+    /* 横書きの行間は縦書きほど広げなくても行を追える */
+    --leading: 1.8;
+
+    max-width: var(--measure);
+    margin-inline: auto;
+  }
+  /* 区切り線は紙面を横切るものなので、本文の幅ではなく枠いっぱいに引く。
+     本文は中央寄せで幅が絞られているため、その分を左右に食み出させる */
+  #reader[data-mode="horizontal"] .colophon {
+    margin-inline: calc((100% - 100cqw) / 2);
+    padding-inline: calc((100cqw - 100%) / 2);
+  }
+</style>

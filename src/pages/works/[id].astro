@@ -1,7 +1,7 @@
 ---
 // 作品ページ。リクエストのたびにエッジで本文を取得・パースする。
 import { env } from "cloudflare:workers";
-import Reader from "../../components/Reader.astro";
+import Reader from "../../components/reader/Reader.astro";
 import { loadWorkText } from "../../lib/content/work-text";
 import { findWork, type Person } from "../../lib/content/index-lookup";
 import people from "../../data/index/people.json";

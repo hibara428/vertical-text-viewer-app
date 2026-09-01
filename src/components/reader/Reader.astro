@@ -1,0 +1,260 @@
+---
+/**
+ * 本文ビューア。読み方モードを切り替えられる。
+ *
+ * ここが持つのは本文(扉・本文・底本)と、モードの切り替えだけ。
+ * レイアウトはモードごとのコンポーネントが持つ。混ぜると、あるモードの都合が
+ * 他のモードへ漏れる。詳細は docs/viewer-design.md を参照。
+ */
+import BlogMode from "./BlogMode.astro";
+import ScrollXMode from "./ScrollXMode.astro";
+
+type Props = {
+  bodyHtml: string;
+  title: string;
+  author: string;
+  /** 底本情報。本文の続きとして最後に置く */
+  colophon: string[];
+  cardUrl: string;
+};
+const { bodyHtml, title, author, colophon, cardUrl } = Astro.props;
+
+/**
+ * 読み方モード。並びは将来の姿にしておき、未実装のものは出さない。
+ *
+ * ページ(1画面ぶんずつ区切ってめくる)は設計済みで未実装。
+ * 縦段組はページと同じ段組みで作り直すため、いったん外している。
+ */
+const MODES = [
+  { id: "vertical-page", label: "ページ", ready: false },
+  { id: "vertical-scroll-x", label: "巻物", ready: true },
+  { id: "horizontal", label: "ブログ", ready: true },
+] as const;
+
+const DEFAULT_MODE = "vertical-scroll-x";
+---
+
+<!--
+  呼び出し側から渡されたヘッダーの中に操作を差し込む。
+  ヘッダーを二段にしないため。
+-->
+<slot name="chrome" />
+
+<div id="reader" data-mode={DEFAULT_MODE}>
+  <article class="body">
+    <!-- 本文の書き出しにも作品名と著者名を置く。書籍の扉にあたる -->
+    <h2 class="work-title">{title}</h2>
+    <p class="work-author">{author}</p>
+    <Fragment set:html={bodyHtml} />
+
+    <!-- 底本情報は本文の続き。ページモードでも最後の紙面として現れる -->
+    <footer class="colophon">
+      {colophon.map((line) => <p>{line}</p>)}
+      <p><a href={cardUrl}>青空文庫の図書カード</a></p>
+    </footer>
+  </article>
+</div>
+
+<template id="reader-controls">
+  <nav class="modes" aria-label="読み方">
+    {
+      MODES.filter((m) => m.ready).map((m) => (
+        <button type="button" data-mode={m.id} aria-pressed="false">
+          {m.label}
+        </button>
+      ))
+    }
+  </nav>
+</template>
+
+<!-- モードごとのレイアウト -->
+<ScrollXMode />
+<BlogMode />
+
+<script>
+  import type { ModeContext, ReaderMode } from "../../lib/reader/mode";
+  import { blogMode } from "../../lib/reader/blog";
+  import { scrollXMode } from "../../lib/reader/scroll-x";
+
+  const reader = document.getElementById("reader")!;
+  const ctx: ModeContext = {
+    reader,
+    body: reader.querySelector<HTMLElement>(".body")!,
+  };
+
+  // 実装を明示的に並べる。自動登録にすると読み込み順に依存して壊れる
+  const MODES = new Map<string, ReaderMode>(
+    [scrollXMode, blogMode].map((m) => [m.id, m]),
+  );
+
+  // 操作をヘッダーの中へ移す。ヘッダーは呼び出し側が組み立てるため、
+  // ここでは差し込む位置だけを決める
+  const template = document.getElementById("reader-controls") as HTMLTemplateElement;
+  document.querySelector(".chrome")!.append(template.content.cloneNode(true));
+  template.remove();
+
+  const buttons = document.querySelectorAll<HTMLButtonElement>(".modes [data-mode]");
+  const KEY = "reading-mode";
+
+  /**
+   * モードを切り替える。
+   *
+   * 前のモードに後始末をさせてから次を組み立てる。順番を逆にすると、
+   * 前のモードが入れたインラインスタイルが残って次の測定を狂わせる。
+   *
+   * 読書位置の保持はいまは行わず、常に先頭から表示する。ビューアの構造が
+   * まだ固まっておらず、先に作り込んでも土台が変われば作り直しになるため。
+   */
+  let current: ReaderMode | null = null;
+
+  const apply = (id: string) => {
+    const next = MODES.get(id);
+    if (!next) return;
+
+    current?.unmount(ctx);
+    current = next;
+
+    reader.dataset.mode = id;
+    for (const b of buttons) b.setAttribute("aria-pressed", String(b.dataset.mode === id));
+    try {
+      localStorage.setItem(KEY, id);
+    } catch {
+      // 保存できなくても読書は続けられる
+    }
+
+    next.mount(ctx);
+  };
+
+  for (const b of buttons) b.addEventListener("click", () => apply(b.dataset.mode!));
+
+  // 画面の大きさが変わると1行に入る文字数も変わるため、測り直す
+  let resizing: number | undefined;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizing);
+    resizing = window.setTimeout(() => current?.resize?.(ctx), 200);
+  });
+
+  let saved: string | null = null;
+  try {
+    saved = localStorage.getItem(KEY);
+  } catch {
+    // 読めなければ既定のモードで始める
+  }
+  // 選べないモードが保存されている場合(名前を変えた・まだ作っていない)は既定に戻す。
+  // 既定はボタンの先頭。フロントマターの定数はここから参照できない
+  const selectable = [...buttons].map((b) => b.dataset.mode!);
+  apply(saved && selectable.includes(saved) ? saved : selectable[0]!);
+</script>
+
+<style is:global>
+  /* ── モード選択 ── */
+  .modes {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    font-family: "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    font-size: 0.8rem;
+  }
+  .modes button {
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: #fff;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  .modes button:hover {
+    border-color: var(--accent);
+  }
+  .modes button[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  /* ── モード共通の値 ──
+     ここに置くのは、モードが読んで使う「値」だけにする。
+     レイアウトの指定そのものを書くと、上書き漏れが不具合になる。 */
+  #reader {
+    /* 余白は本文の文字を基準にする。文字サイズを変えても比率が保たれる。
+       rem はルート要素基準なので本文に連動しない */
+    font-size: 1.125rem;
+    /* ヘッダーと本文のあいだ。全モードで同じだけ空ける */
+    --space-top: 4em;
+    /* 本文の左右 */
+    --space-side: 1.5em;
+  }
+
+  /* ── 本文の体裁 ──
+     文字そのものの見え方。どのモードでも変わらない */
+  .body {
+    /* 扉(作品名・著者名)の大きさ。既定は本文と同じ */
+    --title-size: 1em;
+    --author-size: 1em;
+    /* 1行の長さ。文字数を基準にしているので、文字を大きくしても行長が保たれる */
+    --measure: 38em;
+    /* 行間。縦書きは行が横に並ぶため、詰めすぎると隣の行と混ざる */
+    --leading: 1.9;
+
+    font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+    /* 読書用に本文を大きく取る */
+    font-size: 1.125rem;
+    line-height: var(--leading);
+    /* 均等割り。指定しないと禁則で送られた文字のぶん行末が不揃いになる。
+       余りを字間へ配るのでその行はマス目から外れるが、紙の組版も同じことをする */
+    text-align: justify;
+  }
+  .body p {
+    margin: 0;
+  }
+  .body rt {
+    font-size: 0.5em;
+  }
+  .body .boten {
+    font-style: normal;
+    text-emphasis: filled sesame;
+  }
+  .body .gaiji {
+    /* 面区点→Unicode変換までの暫定表示 */
+    border-bottom: 1px dotted #999;
+  }
+  .body .heading {
+    margin: 0;
+    font-size: 1.1em;
+    font-weight: normal;
+    /* ページや段の切れ目が見出しの直後に来ないようにする */
+    break-after: avoid;
+  }
+  /* 空行(場面転換)の間隔。縦横どちらの組みでも進行方向に空ける */
+  .body .gap {
+    block-size: 1.9em;
+  }
+
+  /* 本文冒頭の扉。位置と大きさはモードごとに決める */
+  .body .work-title {
+    margin: 0;
+    font-size: var(--title-size);
+    font-weight: normal;
+  }
+  .body .work-author {
+    /* 本文との間隔。margin-bottom だと縦書きで著者名の真下が空いてしまうので、
+       書字方向に追従する論理プロパティで指定する */
+    margin: 0;
+    margin-block-end: 3em;
+    font-size: var(--author-size);
+  }
+
+  /* 底本情報。本文の続きとして小さく組む。
+     区切り線は進行方向の手前側に引くため、縦書きでは縦線、横書きでは横線になる */
+  .body .colophon {
+    margin-block-start: 4em;
+    padding-block-start: 3em;
+    border-block-start: 1px solid var(--line);
+    font-size: 0.72em;
+    color: var(--muted);
+  }
+  .body .colophon p {
+    margin: 0;
+  }
+</style>

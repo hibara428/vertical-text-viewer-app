@@ -1,0 +1,50 @@
+---
+/**
+ * 巻物: 縦書き・横スクロール。
+ *
+ * このモードのレイアウトはすべてここに閉じる。
+ * 枠の高さと1行の長さは実測が要るため、src/lib/reader/scroll-x.ts が入れる。
+ */
+---
+
+<style is:global>
+  #reader[data-mode="vertical-scroll-x"] {
+    /* 高さは実際のヘッダーを測って JS が入れる。
+       上下の余白はここで取り、残りを本文が1行の長さに使う。
+       左右は巻きはじめと巻きおわりにあたるので、上下より広く取る */
+    padding: var(--space-top) 8em;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  #reader[data-mode="vertical-scroll-x"] .body {
+    writing-mode: vertical-rl;
+  }
+
+  /* 画面の左右クリックで送る。どちらへ動くかをカーソルの向きで示す。
+     縦書きは右から左へ進むので、左半分が「先へ」になる */
+  #reader[data-mode="vertical-scroll-x"][data-side="next"] {
+    cursor: w-resize;
+  }
+  #reader[data-mode="vertical-scroll-x"][data-side="prev"] {
+    cursor: e-resize;
+  }
+
+  /* 扉。縦書きでは文字を大きくすると行の位置がずれるため、大きさは本文のままにし、
+     字下げだけで体裁を作る */
+  #reader[data-mode="vertical-scroll-x"] .work-title {
+    /* 行頭(縦書きでは上)から二文字ぶん下げる */
+    text-indent: 2em;
+  }
+  #reader[data-mode="vertical-scroll-x"] .work-author {
+    /* 行末(縦書きでは下)にそろえ、そこから二文字ぶん空ける */
+    text-align: end;
+    padding-inline-end: 2em;
+    margin-block-end: 1em;
+  }
+  /* 著者名と本文のあいだに一行ぶん空ける */
+  #reader[data-mode="vertical-scroll-x"] .work-author::after {
+    content: "";
+    display: block;
+    block-size: 1em;
+  }
+</style>
