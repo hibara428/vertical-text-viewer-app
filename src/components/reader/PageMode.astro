@@ -1,0 +1,71 @@
+---
+/**
+ * ページ: 縦書き・1画面ずつめくる。
+ *
+ * 段組みの寸法は測らないと決まらないため、大きさは src/lib/reader/page.ts が入れる。
+ * ここに置くのは、測らなくても決まる指定だけ。
+ */
+---
+
+<style is:global>
+  #reader[data-mode="vertical-page"] {
+    /* 窓を上下左右の中央に置く。ページの高さは字送りの整数倍に丸めるので、
+       余った分がこの中央寄せで左右上下へ均等に散る */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: var(--space-top) var(--space-side);
+    overflow: hidden;
+  }
+
+  /* ページ1枚ぶんに切り取る窓。大きさは JS が入れる */
+  #reader[data-mode="vertical-page"] .page-window {
+    overflow: hidden;
+  }
+
+  #reader[data-mode="vertical-page"] .body {
+    writing-mode: vertical-rl;
+    margin: 0;
+    column-gap: 0;
+    /* 順に詰める。balance にすると全段へ均等に配られ、ページにならない */
+    column-fill: auto;
+  }
+
+  /* 扉。縦書きでは文字を大きくすると行の位置がずれるため、大きさは本文のままにし、
+     字下げだけで体裁を作る */
+  #reader[data-mode="vertical-page"] .work-title {
+    text-indent: 2em;
+  }
+  #reader[data-mode="vertical-page"] .work-author {
+    text-align: end;
+    padding-inline-end: 2em;
+    margin-block-end: 1em;
+  }
+  #reader[data-mode="vertical-page"] .work-author::after {
+    content: "";
+    display: block;
+    block-size: 1em;
+  }
+
+  /* いま何ページ目か。文字や画面の大きさで総数が変わるため、組み直すたびに入れ直す */
+  #reader[data-mode="vertical-page"] .page-number {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0.8em;
+    margin: 0;
+    font-family: "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    font-size: 0.7rem;
+    text-align: center;
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  /* めくる向きを矢印のカーソルで示す。巻物と同じ割り当て */
+  #reader[data-mode="vertical-page"][data-side="next"] {
+    cursor: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2724%27%20height%3D%2724%27%20viewBox%3D%270%200%2024%2024%27%3E%3Cpath%20d%3D%27M20%2012H6M12%206l-6%206%206%206%27%20fill%3D%27none%27%20stroke%3D%27%23fff%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%2F%3E%3Cpath%20d%3D%27M20%2012H6M12%206l-6%206%206%206%27%20fill%3D%27none%27%20stroke%3D%27%231a1a1a%27%20stroke-width%3D%272.5%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%2F%3E%3C%2Fsvg%3E") 12 12, w-resize;
+  }
+  #reader[data-mode="vertical-page"][data-side="prev"] {
+    cursor: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2724%27%20height%3D%2724%27%20viewBox%3D%270%200%2024%2024%27%3E%3Cpath%20d%3D%27M4%2012h14M12%206l6%206-6%206%27%20fill%3D%27none%27%20stroke%3D%27%23fff%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%2F%3E%3Cpath%20d%3D%27M4%2012h14M12%206l6%206-6%206%27%20fill%3D%27none%27%20stroke%3D%27%231a1a1a%27%20stroke-width%3D%272.5%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%2F%3E%3C%2Fsvg%3E") 12 12, e-resize;
+  }
+</style>

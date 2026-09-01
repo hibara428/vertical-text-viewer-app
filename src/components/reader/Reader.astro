@@ -7,6 +7,7 @@
  * 他のモードへ漏れる。詳細は docs/viewer-design.md を参照。
  */
 import BlogMode from "./BlogMode.astro";
+import PageMode from "./PageMode.astro";
 import ScrollXMode from "./ScrollXMode.astro";
 
 type Props = {
@@ -22,16 +23,15 @@ const { bodyHtml, title, author, colophon, cardUrl } = Astro.props;
 /**
  * 読み方モード。並びは将来の姿にしておき、未実装のものは出さない。
  *
- * ページ(1画面ぶんずつ区切ってめくる)は設計済みで未実装。
  * 縦段組はページと同じ段組みで作り直すため、いったん外している。
  */
 const MODES = [
-  { id: "vertical-page", label: "ページ", ready: false },
+  { id: "vertical-page", label: "ページ", ready: true },
   { id: "vertical-scroll-x", label: "巻物", ready: true },
   { id: "horizontal", label: "ブログ", ready: true },
 ] as const;
 
-const DEFAULT_MODE = "vertical-scroll-x";
+const DEFAULT_MODE = "vertical-page";
 ---
 
 <!--
@@ -68,12 +68,14 @@ const DEFAULT_MODE = "vertical-scroll-x";
 </template>
 
 <!-- モードごとのレイアウト -->
+<PageMode />
 <ScrollXMode />
 <BlogMode />
 
 <script>
   import type { ModeContext, ReaderMode } from "../../lib/reader/mode";
   import { blogMode } from "../../lib/reader/blog";
+  import { pageMode } from "../../lib/reader/page";
   import { scrollXMode } from "../../lib/reader/scroll-x";
 
   const reader = document.getElementById("reader")!;
@@ -84,7 +86,7 @@ const DEFAULT_MODE = "vertical-scroll-x";
 
   // 実装を明示的に並べる。自動登録にすると読み込み順に依存して壊れる
   const MODES = new Map<string, ReaderMode>(
-    [scrollXMode, blogMode].map((m) => [m.id, m]),
+    [pageMode, scrollXMode, blogMode].map((m) => [m.id, m]),
   );
 
   // 操作をヘッダーの中へ移す。ヘッダーは呼び出し側が組み立てるため、
