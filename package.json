@@ -12,7 +12,8 @@
     "astro": "astro",
     "generate-types": "wrangler types",
     "update-index": "tsx scripts/update-index.ts",
-    "build-search-index": "tsx scripts/build-search-index.ts"
+    "build-search-index": "tsx scripts/build-search-index.ts",
+    "build-gaiji-table": "tsx scripts/build-gaiji-table.ts"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.2.5",

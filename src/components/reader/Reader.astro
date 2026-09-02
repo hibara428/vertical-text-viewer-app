@@ -233,6 +233,17 @@ const DEFAULT_MODE = "vertical-page";
     block-size: 1.9em;
   }
 
+  /* 字下げ。縦書きでは行頭が上、横書きでは左になるが、どちらも「行の始まり」
+     なので text-indent でそろう。字数はパーサーが --indent に入れる */
+  .body .indent {
+    text-indent: calc(var(--indent, 0) * 1em);
+  }
+  /* 地付き・字上げ。行末(縦書きでは下)へ寄せ、--hang の字数だけ空ける */
+  .body .hang {
+    text-align: end;
+    padding-inline-end: calc(var(--hang, 0) * 1em);
+  }
+
   /* 本文冒頭の扉。位置と大きさはモードごとに決める */
   .body .work-title {
     margin: 0;

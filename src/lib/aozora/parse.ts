@@ -5,8 +5,9 @@
  * 後から掛ける構造にしている。ルビの親文字は文字種の境界で決まるため、
  * 正規表現の後方参照では正しく取れない。
  *
- * 未対応: 外字の面区点→Unicode変換、字下げ・改ページなどの注記。
+ * 外字は注記の面区点から実際の文字へ変換する。変換表は gaiji-table.ts。
  */
+import { GAIJI_ENTRY_SIZE, GAIJI_TABLE } from "./gaiji-table";
 
 export type Parsed = {
   title: string;
@@ -54,6 +55,15 @@ type Unit = {
   boten?: boolean;
 };
 
+/**
+ * 行の置き方。青空文庫の注記のうち、行全体の位置を決めるもの。
+ *
+ * indent は行頭から何字下げるか。縦書きでは行頭が上、横書きでは左になるが、
+ * どちらも「行の始まり」なので同じ指定でよい。
+ * hang は行末(縦書きでは下)へ寄せる指定で、何字ぶん空けるかを持つ。
+ */
+type Placement = { indent?: number; hang?: number };
+
 type CharClass = "kanji" | "hiragana" | "katakana" | "latin" | "digit" | "other";
 
 function charClass(ch: string): CharClass {
@@ -80,6 +90,8 @@ function charClass(ch: string): CharClass {
 function toHtml(lines: string[]): string {
   const out: string[] = [];
   let blank = 0;
+  /** ［＃ここからN字下げ］…［＃ここで字下げ終わり］ が続いているあいだの体裁 */
+  let block: Placement = {};
 
   for (const line of lines) {
     if (line.trim() === "") {
@@ -89,17 +101,37 @@ function toHtml(lines: string[]): string {
     // 空行は場面転換などの「間」を表すので、間隔として残す
     if (blank > 0 && out.length > 0) out.push(`<div class="gap" aria-hidden="true"></div>`);
     blank = 0;
-    out.push(renderLine(line));
+
+    const { units, heading, place, blockStart, blockEnd } = scan(line);
+    if (blockEnd) block = {};
+    if (blockStart) block = blockStart;
+
+    const inner = render(units);
+    if (inner === "") continue;
+    // 行ごとの指定があればそちらを優先する。無ければ続いている塊の体裁に従う
+    out.push(wrap(inner, heading, place.indent !== undefined || place.hang !== undefined ? place : block));
   }
   return out.join("\n");
 }
 
-function renderLine(line: string): string {
-  const { units, heading } = scan(line);
-  const inner = render(units);
-  if (inner === "") return "";
-  if (heading) return `<h${heading} class="heading">${inner}</h${heading}>`;
-  return `<p>${inner}</p>`;
+/** 本文の1行を要素にする。字下げなどは値をそのまま持たせ、寸法は CSS が決める */
+function wrap(inner: string, heading: number | undefined, place: Placement): string {
+  const cls: string[] = [];
+  const vars: string[] = [];
+  if (heading) cls.push("heading");
+  if (place.indent) {
+    cls.push("indent");
+    vars.push(`--indent:${place.indent}`);
+  }
+  if (place.hang !== undefined) {
+    cls.push("hang");
+    if (place.hang) vars.push(`--hang:${place.hang}`);
+  }
+  const attr =
+    (cls.length ? ` class="${cls.join(" ")}"` : "") +
+    (vars.length ? ` style="${vars.join(";")}"` : "");
+  const tag = heading ? `h${heading}` : "p";
+  return `<${tag}${attr}>${inner}</${tag}>`;
 }
 
 /** 連続する傍点はひとつの要素にまとめる */
@@ -134,9 +166,18 @@ const HEADING_LEVEL: Record<string, number> = {
 /* 1行の走査                                                           */
 /* ------------------------------------------------------------------ */
 
-function scan(line: string): { units: Unit[]; heading?: number } {
+function scan(line: string): {
+  units: Unit[];
+  heading?: number;
+  place: Placement;
+  blockStart?: Placement;
+  blockEnd?: boolean;
+} {
   const units: Unit[] = [];
   let heading: number | undefined;
+  const place: Placement = {};
+  let blockStart: Placement | undefined;
+  let blockEnd: boolean | undefined;
   /** ｜ が示すルビ範囲の開始位置(units上の添字) */
   let rubyStart: number | null = null;
   let i = 0;
@@ -151,16 +192,12 @@ function scan(line: string): { units: Unit[]; heading?: number } {
       continue;
     }
 
-    // 外字注記: ※［＃…］。表示は字形説明で代替する(Unicode変換は後続)
+    // 外字注記: ※［＃…］
     if (ch === "※" && line.startsWith("［＃", i + 1)) {
       const close = line.indexOf("］", i);
       if (close !== -1) {
         const note = line.slice(i + 3, close);
-        const shape = /^「([^」]*)」/.exec(note)?.[1] ?? note;
-        units.push({
-          html: `<span class="gaiji" title="${escapeHtml(note)}">${escapeHtml(shape)}</span>`,
-          ch: "漢", // ルビの親文字として漢字と同じ扱いにする
-        });
+        units.push(gaijiUnit(note));
         i = close + 1;
         continue;
       }
@@ -170,8 +207,16 @@ function scan(line: string): { units: Unit[]; heading?: number } {
     if (ch === "［" && line[i + 1] === "＃") {
       const close = line.indexOf("］", i);
       if (close !== -1) {
-        const level = applyAnnotation(units, line.slice(i + 2, close), rubyStart);
+        const note = line.slice(i + 2, close);
+        const level = applyAnnotation(units, note, rubyStart);
         if (level) heading = level;
+
+        const laid = readPlacement(note);
+        if (laid) {
+          if (laid.scope === "line") Object.assign(place, laid.place);
+          else if (laid.scope === "start") blockStart = laid.place;
+          else blockEnd = true;
+        }
         i = close + 1;
         continue;
       }
@@ -192,7 +237,94 @@ function scan(line: string): { units: Unit[]; heading?: number } {
     i++;
   }
 
-  return { units, heading };
+  return { units, heading, place, blockStart, blockEnd };
+}
+
+/** 全角の数字も使われるので、算用数字にそろえて読む */
+function toNumber(s: string): number {
+  return Number(s.replace(/[０-９]/g, (c) => String(c.charCodeAt(0) - 0xff10)));
+}
+
+/**
+ * 行の置き方を指定する注記を読む。
+ *
+ * 1行だけに掛かるもの(［＃４字下げ］)と、［＃ここから…］［＃ここで…終わり］で
+ * 挟んだ範囲に掛かるものがある。実データでは注記全体の3割がこの類で、
+ * 見出しの前に置かれることが多い。落とすと見出しが本文と同じ位置に並ぶ。
+ */
+function readPlacement(
+  note: string,
+): { scope: "line" | "start" | "end"; place: Placement } | undefined {
+  let m: RegExpExecArray | null;
+
+  if ((m = /^([0-9０-９]+)字下げ$/.exec(note)))
+    return { scope: "line", place: { indent: toNumber(m[1]!) } };
+  if ((m = /^ここから([0-9０-９]+)字下げ$/.exec(note)))
+    return { scope: "start", place: { indent: toNumber(m[1]!) } };
+  if (/^ここで字下げ終わり$/.test(note)) return { scope: "end", place: {} };
+
+  // 地付き・字上げ。行末(縦書きでは下)へ寄せる
+  if (/^地付き$/.test(note)) return { scope: "line", place: { hang: 0 } };
+  if ((m = /^地から([0-9０-９]+)字上げ$/.exec(note)))
+    return { scope: "line", place: { hang: toNumber(m[1]!) } };
+  if ((m = /^ここから地から([0-9０-９]+)字上げ$/.exec(note)))
+    return { scope: "start", place: { hang: toNumber(m[1]!) } };
+  if (/^ここで字上げ終わり$/.test(note)) return { scope: "end", place: {} };
+
+  return undefined;
+}
+
+/**
+ * 外字注記を1つの単位にする。
+ *
+ * 注記には面区点(第3水準1-88-81)か符号位置(U+9C56)が添えられていることが多く、
+ * そこから実際の文字を復元できる。復元できたときは普通の1文字として組めるので、
+ * 行の長さも崩れない。
+ *
+ * 復元できないものは字形の説明(「目＋匡」など)をそのまま出す。読みにくいが、
+ * 何の字か分からなくなるよりはよい。3文字ぶんの幅を取ることになる。
+ */
+function gaijiUnit(note: string): Unit {
+  const cp = lookupGaiji(note);
+  if (cp !== undefined) {
+    const ch = String.fromCodePoint(cp);
+    return { html: escapeHtml(ch), ch };
+  }
+  const shape = /^「([^」]*)」/.exec(note)?.[1] ?? note;
+  return {
+    html: `<span class="gaiji" title="${escapeHtml(note)}">${escapeHtml(shape)}</span>`,
+    ch: "漢", // ルビの親文字として漢字と同じ扱いにする
+  };
+}
+
+/** 注記から符号位置を得る。分からなければ undefined */
+function lookupGaiji(note: string): number | undefined {
+  // 符号位置が直接書かれている場合
+  const direct = /U\+([0-9A-Fa-f]{4,6})/.exec(note);
+  if (direct) return parseInt(direct[1]!, 16);
+
+  // 面-区-点。「第3水準1-88-81」「第4水準2-12-93」など
+  const m = /([12])-(\d{1,2})-(\d{1,2})(?!\d)/.exec(note);
+  if (!m) return undefined;
+  const men = Number(m[1]);
+  const ku = Number(m[2]);
+  const ten = Number(m[3]);
+  if (ku < 1 || ku > 94 || ten < 1 || ten > 94) return undefined;
+
+  const want = (men - 1) * 94 * 94 + (ku - 1) * 94 + (ten - 1);
+
+  // 表は面区点の順に並んでいる。組み立て直さず、その場で二分探索する
+  let lo = 0;
+  let hi = GAIJI_TABLE.length / GAIJI_ENTRY_SIZE - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const at = mid * GAIJI_ENTRY_SIZE;
+    const found = Number(GAIJI_TABLE.slice(at, at + 5));
+    if (found === want) return parseInt(GAIJI_TABLE.slice(at + 5, at + GAIJI_ENTRY_SIZE), 16);
+    if (found < want) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  return undefined;
 }
 
 /**
