@@ -1,4 +1,5 @@
 import type { ModeContext, ReaderMode } from "./mode";
+import { buildIndex, findFirst, rangeAt, type TextIndex } from "./text-index";
 
 /**
  * ページ: 縦書き・1画面ずつめくる。
@@ -12,15 +13,12 @@ import type { ModeContext, ReaderMode } from "./mode";
  * 設計と検証は docs/viewer-design.md「ページモードの設計」。
  */
 
-/** 本文の文字を通し番号で引くための索引。読書位置とページ番号の換算に使う */
-type Flat = { nodes: Text[]; starts: number[]; total: number };
-
 type State = {
   ctx: ModeContext;
   /** ページ1枚ぶんに切り取る窓 */
   win: HTMLElement;
   indicator: HTMLElement;
-  flat: Flat;
+  index: TextIndex;
   pageH: number;
   pages: number;
   page: number;
@@ -36,73 +34,15 @@ type State = {
 
 let state: State | null = null;
 
-/** 本文の文字を読み順に並べる。ルビは親文字の脇に出るので読み順には含めない */
-const flatten = (root: HTMLElement): Flat => {
-  const nodes: Text[] = [];
-  const starts: number[] = [];
-  let total = 0;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let n: Node | null;
-  while ((n = walker.nextNode())) {
-    const t = n as Text;
-    if (!t.data.trim() || t.parentElement?.closest("rt")) continue;
-    nodes.push(t);
-    starts.push(total);
-    total += t.data.length;
-  }
-  return { nodes, starts, total };
-};
-
-/** 通し番号の文字を指す Range */
-const rangeAt = (flat: Flat, i: number) => {
-  let lo = 0;
-  let hi = flat.nodes.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if (flat.starts[mid]! <= i) lo = mid;
-    else hi = mid - 1;
-  }
-  const node = flat.nodes[lo]!;
-  const offset = Math.min(i - flat.starts[lo]!, node.data.length - 1);
-  const range = document.createRange();
-  range.setStart(node, offset);
-  range.setEnd(node, offset + 1);
-  return range;
-};
-
-/**
- * 位置 → ページ番号。
- *
- * ページをまたぐ段落に getBoundingClientRect() を使うと全断片を覆う矩形が返る。
- * 文字1つの Range なら必ず1つの段に収まる。
- */
+/** 位置 → ページ番号 */
 const pageOf = (s: State, i: number) => {
-  const rect = rangeAt(s.flat, i).getBoundingClientRect();
+  const rect = rangeAt(s.index, i).getBoundingClientRect();
   const top = rect.top - s.win.getBoundingClientRect().top + s.win.scrollTop;
   return Math.max(0, Math.floor(top / s.pageH));
 };
 
-/**
- * ページ番号 → 位置。そのページの先頭の文字を返す。
- *
- * 文字は読み順に沿って必ず後のページへ進み、前に戻らない。この単調さがあるので
- * 全文を走らずに二分探索できる。7万字でも十数回の測定で済む。
- */
-const firstOnPage = (s: State, k: number) => {
-  let lo = 0;
-  let hi = s.flat.total - 1;
-  let found = 0;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if (pageOf(s, mid) >= k) {
-      found = mid;
-      hi = mid - 1;
-    } else {
-      lo = mid + 1;
-    }
-  }
-  return found;
-};
+/** ページ番号 → 位置。そのページの先頭の文字を返す */
+const firstOnPage = (s: State, k: number) => findFirst(s.index, (i) => pageOf(s, i) >= k);
 
 /** いまの画面に合わせてページの大きさを決め、段組みを組み直す */
 const layout = (s: State) => {
@@ -188,7 +128,7 @@ export const pageMode: ReaderMode = {
       ctx,
       win,
       indicator,
-      flat: flatten(body),
+      index: buildIndex(body),
       pageH: 1,
       pages: 1,
       page: 0,

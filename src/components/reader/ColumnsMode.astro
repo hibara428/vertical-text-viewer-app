@@ -1,0 +1,50 @@
+---
+/**
+ * 縦段組: 縦書き・縦スクロール。
+ *
+ * 帯の大きさは測らないと決まらないため、src/lib/reader/columns.ts が入れる。
+ * ここに置くのは、測らなくても決まる指定だけ。
+ */
+---
+
+<style is:global>
+  #reader[data-mode="vertical-columns"] {
+    /* 高さは内容に従って伸ばす。ページのスクロールで読ませるため、
+       枠の中でスクロールさせない */
+    padding: var(--space-top) var(--space-side);
+  }
+
+  #reader[data-mode="vertical-columns"] .body {
+    /* 1画面に見せる帯の数。字詰めはここから決まる。
+       帯2つぶんが画面に収まっていれば、どこでスクロールを止めても必ず1帯が
+       丸ごと見える。縦書きの帯は途中で切れると1行も読めなくなるため */
+    --visible-bands: 2;
+
+    writing-mode: vertical-rl;
+    /* 帯の幅を絞ったぶんを左右に振り分けて中央へ置く。ページ・ブログと同じ
+       見た目の余白になる。縦書きでは margin-inline が縦を指すので、
+       ここは物理の左右で書く */
+    margin: 0 auto;
+    /* 帯と帯のあいだ。ページモードは窓で1帯だけ見せるので 0 にしたが、
+       縦段組では切れ目が見えること自体が要る */
+    column-gap: 2em;
+    /* 順に詰める。balance にすると全帯へ均等に配られ、帯の高さが揃わない */
+    column-fill: auto;
+  }
+
+  /* 扉。縦書きでは文字を大きくすると行の位置がずれるため、大きさは本文のままにし、
+     字下げだけで体裁を作る */
+  #reader[data-mode="vertical-columns"] .work-title {
+    text-indent: 2em;
+  }
+  #reader[data-mode="vertical-columns"] .work-author {
+    text-align: end;
+    padding-inline-end: 2em;
+    margin-block-end: 1em;
+  }
+  #reader[data-mode="vertical-columns"] .work-author::after {
+    content: "";
+    display: block;
+    block-size: 1em;
+  }
+</style>
