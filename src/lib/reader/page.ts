@@ -114,14 +114,25 @@ const layout = (s: State) => {
   reader.style.height = `${frame}px`;
 
   const rs = getComputedStyle(reader);
-  const pageW = reader.clientWidth - parseFloat(rs.paddingLeft) - parseFloat(rs.paddingRight);
   const available = frame - parseFloat(rs.paddingTop) - parseFloat(rs.paddingBottom);
 
-  // 1行の長さ(縦書きでは縦)は字送りの整数倍にそろえる。
-  // 半端が残ると行末に空きが出る
   const bs = getComputedStyle(body);
+
+  // ページの大きさは「何字 × 何行」で決める。縦書きでは軸が入れ替わるので、
+  //   高さ = 字送り(font-size + 字間)の整数倍 → 1行の字詰め
+  //   幅   = 行送り(line-height)の整数倍     → 1ページの行数
+  // どちらも整数倍にしないと、行末や紙面の端に文字の入らない半端が残る。
+
+  // 1行の字詰め。使える高さいっぱいまで
   const advance = parseFloat(bs.fontSize) + (parseFloat(bs.letterSpacing) || 0);
   const pageH = Math.floor(available / advance) * advance;
+
+  // 1ページの行数。画面の残り全部を使うと紙面が横に広がり、行を追い終えて
+  // 次の行へ目を戻す距離が長くなる。--page-lines を上限にする
+  const leading = parseFloat(bs.lineHeight);
+  const room = reader.clientWidth - parseFloat(rs.paddingLeft) - parseFloat(rs.paddingRight);
+  const wanted = parseFloat(bs.getPropertyValue("--page-lines")) * leading;
+  const pageW = Math.floor(Math.min(room, wanted || room) / leading) * leading;
 
   s.pageH = pageH;
   // 窓はページ1枚ちょうどにする。余らせると次のページの行が数px覗く
@@ -153,6 +164,7 @@ const turn = (s: State, delta: number) => {
 };
 
 let onMove: ((e: MouseEvent) => void) | null = null;
+let onDown: ((e: MouseEvent) => void) | null = null;
 let onClick: ((e: MouseEvent) => void) | null = null;
 let onKey: ((e: KeyboardEvent) => void) | null = null;
 
@@ -187,16 +199,30 @@ export const pageMode: ReaderMode = {
     layout(s);
     show(s, 0);
 
-    // 縦書きは右から左へ進むので、画面の左半分が「先へ」
+    // 画面を横に三分割する。縦書きは右から左へ進むので、左が「先へ」、右が「前へ」。
+    // 真ん中は送らずに、文字を選ぶための場所として空けておく
     onMove = (e) => {
       const box = reader.getBoundingClientRect();
-      reader.dataset.side = e.clientX < box.left + box.width / 2 ? "next" : "prev";
+      const at = (e.clientX - box.left) / box.width;
+      if (at < 1 / 3) reader.dataset.side = "next";
+      else if (at > 2 / 3) reader.dataset.side = "prev";
+      else delete reader.dataset.side;
     };
+
+    // 送る場所でだけ、2回目以降の押下の既定動作(単語選択)を止める。
+    // click 自体は発生するので、連打はそのまま連続の送りになる。
+    // 真ん中はダブルクリックで単語を選べるまま残す
+    onDown = (e) => {
+      if (reader.dataset.side && e.detail >= 2) e.preventDefault();
+    };
+
     onClick = (e) => {
       // リンクと、文字を選ぼうとしている操作は邪魔しない
       if ((e.target as Element).closest("a")) return;
       if (window.getSelection()?.toString()) return;
-      turn(s, reader.dataset.side === "next" ? 1 : -1);
+      const side = reader.dataset.side;
+      if (!side) return;
+      turn(s, side === "next" ? 1 : -1);
     };
     onKey = (e) => {
       // 縦書きの進行方向に合わせる。左が先、右が前
@@ -212,15 +238,18 @@ export const pageMode: ReaderMode = {
     };
 
     reader.addEventListener("mousemove", onMove);
+    reader.addEventListener("mousedown", onDown);
     reader.addEventListener("click", onClick);
     window.addEventListener("keydown", onKey);
   },
 
   unmount({ reader, body }) {
     if (onMove) reader.removeEventListener("mousemove", onMove);
+    if (onDown) reader.removeEventListener("mousedown", onDown);
     if (onClick) reader.removeEventListener("click", onClick);
     if (onKey) window.removeEventListener("keydown", onKey);
     onMove = null;
+    onDown = null;
     onClick = null;
     onKey = null;
 

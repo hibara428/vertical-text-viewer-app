@@ -43,6 +43,7 @@ const STEP_RATIO = 0.8;
 
 // 付け外しできるよう参照を持っておく。モードは1つしか動かないのでモジュールに置く
 let onMove: ((e: MouseEvent) => void) | null = null;
+let onDown: ((e: MouseEvent) => void) | null = null;
 let onClick: ((e: MouseEvent) => void) | null = null;
 
 export const scrollXMode: ReaderMode = {
@@ -54,33 +55,49 @@ export const scrollXMode: ReaderMode = {
     // 縦書きは右から左へ進むので、スクロール範囲の右端(最大値)が作品の先頭
     reader.scrollLeft = reader.scrollWidth;
 
-    // いま左右どちら側にいるかを持たせる。カーソルの向きは CSS が決める
+    // 画面を横に三分割する。縦書きは右から左へ進むので、左が「先へ」、右が「前へ」。
+    // 真ん中は送らずに、文字を選ぶための場所として空けておく。
+    // カーソルの向きは、この data-side を見て CSS が決める
     onMove = (e) => {
       const box = reader.getBoundingClientRect();
-      reader.dataset.side = e.clientX < box.left + box.width / 2 ? "next" : "prev";
+      const at = (e.clientX - box.left) / box.width;
+      if (at < 1 / 3) reader.dataset.side = "next";
+      else if (at > 2 / 3) reader.dataset.side = "prev";
+      else delete reader.dataset.side;
+    };
+
+    // 送る場所でだけ、2回目以降の押下の既定動作(単語選択)を止める。
+    // click 自体は発生するので、連打はそのまま連続の送りになる。
+    // 真ん中はダブルクリックで単語を選べるまま残す
+    onDown = (e) => {
+      if (reader.dataset.side && e.detail >= 2) e.preventDefault();
     };
 
     onClick = (e) => {
       // リンクと、文字を選ぼうとしている操作は邪魔しない
       if ((e.target as Element).closest("a")) return;
       if (window.getSelection()?.toString()) return;
+      const side = reader.dataset.side;
+      if (!side) return;
 
       // 先へ進むほど左へ動く。つまり scrollLeft は減る
-      const forward = reader.dataset.side === "next";
       reader.scrollBy({
-        left: reader.clientWidth * STEP_RATIO * (forward ? -1 : 1),
+        left: reader.clientWidth * STEP_RATIO * (side === "next" ? -1 : 1),
         behavior: "smooth",
       });
     };
 
     reader.addEventListener("mousemove", onMove);
+    reader.addEventListener("mousedown", onDown);
     reader.addEventListener("click", onClick);
   },
 
   unmount({ reader, body }) {
     if (onMove) reader.removeEventListener("mousemove", onMove);
+    if (onDown) reader.removeEventListener("mousedown", onDown);
     if (onClick) reader.removeEventListener("click", onClick);
     onMove = null;
+    onDown = null;
     onClick = null;
     delete reader.dataset.side;
 
