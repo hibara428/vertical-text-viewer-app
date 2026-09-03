@@ -9,15 +9,84 @@
 
 <style is:global>
   #reader[data-mode="vertical-scroll-x"] {
-    /* 高さは実際のヘッダーを測って JS が入れる。
-       上下の余白はここで取り、残りを本文が1行の長さに使う。
-       左右は巻きはじめと巻きおわりにあたるので、上下より広く取る */
-    padding: var(--space-top) 8em;
+    /* 高さと左右の余白は JS が測って入れる。
+       左右は、いまの紙面が画面の中央に来る幅になる */
+    padding: var(--space-top) 0;
+    position: relative;
     overflow-x: auto;
     overflow-y: hidden;
   }
+  /* 巻き広げた範囲。幅は JS が入れる。
+     本文より狭いあいだは右へ寄せ、左に「まだ巻いてある」余白を残す */
+  #reader[data-mode="vertical-scroll-x"] .roll {
+    position: relative;
+    /* まだ読んでいない先を隠す。本文はここから左へはみ出している */
+    overflow: hidden;
+  }
   #reader[data-mode="vertical-scroll-x"] .body {
     writing-mode: vertical-rl;
+    /* 右端(作品の先頭)を巻物の端に固定し、そこから左へ伸ばす */
+    position: absolute;
+    top: 0;
+    right: 0;
+    /* 巻物の幅で縮められないようにする。ここが本文全体の長さになる */
+    width: max-content;
+  }
+
+  /* 文字が出終わったら、まだ何も無い左の余白に次への誘いを出す。
+     いまの紙面のすぐ左に来るので、そのまま押せば続きが出る。
+     本文と同じ縦組みにして、紙面の一部のように見せる */
+  #reader[data-mode="vertical-scroll-x"] .prompt {
+    position: absolute;
+    left: 0;
+    top: var(--space-top);
+    bottom: var(--space-top);
+    width: var(--side, 0);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    writing-mode: vertical-rl;
+    font-family: "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    color: var(--muted);
+    pointer-events: none;
+    /* ゆっくり明滅させて、読み終わったことに気づけるようにする。
+       本文を読んでいる最中は視界の端にあるので、速いと気が散る */
+    animation: reader-prompt-breathe 2.6s ease-in-out infinite;
+  }
+  /* 矢印。ホバー時のカーソルと同じ形にして、押す場所だと分かるようにする。
+     色を継げるよう背景を切り抜く形で描く */
+  #reader[data-mode="vertical-scroll-x"] .prompt::before {
+    content: "";
+    inline-size: 1.9rem;
+    block-size: 1.9rem;
+    background: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M20%2012H6M12%206l-6%206%206%206%27%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M20%2012H6M12%206l-6%206%206%206%27%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+  }
+  /* 文言は読み上げのために残し、画面には出さない */
+  #reader[data-mode="vertical-scroll-x"] .prompt .label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  @keyframes reader-prompt-breathe {
+    0%,
+    100% {
+      opacity: 0.2;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  /* 動きを控える設定のときは明滅させない */
+  @media (prefers-reduced-motion: reduce) {
+    #reader[data-mode="vertical-scroll-x"] .prompt {
+      animation: none;
+    }
   }
 
   /* 画面の左右クリックで送る。動く向きを矢印のカーソルで示す。

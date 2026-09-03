@@ -33,6 +33,18 @@ export const buildIndex = (root: HTMLElement): TextIndex => {
   return { nodes, starts, total };
 };
 
+/** 通し番号の文字そのもの。位置が要らないときは Range を作らずに済む */
+export const charAt = ({ nodes, starts }: TextIndex, i: number) => {
+  let lo = 0;
+  let hi = nodes.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (starts[mid]! <= i) lo = mid;
+    else hi = mid - 1;
+  }
+  return nodes[lo]!.data[i - starts[lo]!] ?? "";
+};
+
 /**
  * 通し番号の文字を指す Range。
  *

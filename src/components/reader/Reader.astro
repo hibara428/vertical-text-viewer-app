@@ -198,6 +198,9 @@ const DEFAULT_MODE = "vertical-page";
     --measure: 38em;
     /* 行間。縦書きは行が横に並ぶため、詰めすぎると隣の行と混ざる */
     --leading: 1.9;
+    /* 1紙面の行数。紙面の幅はこれと行送りの掛け算で決まるので、文字や行間を
+       変えても行数は変わらない。ページと巻物で同じ分量にするため共通に置く */
+    --page-lines: 20;
 
     font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
     /* 読書用に本文を大きく取る */
