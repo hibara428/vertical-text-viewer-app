@@ -163,6 +163,7 @@ const DEFAULT_MODE = "vertical-scroll-x";
     }
 
     next.mount(ctx);
+    reader.dataset.ready = "";
     lastSize = `${frameHeight()}x${reader.clientWidth}`;
   };
 
@@ -294,6 +295,20 @@ const DEFAULT_MODE = "vertical-scroll-x";
   /* ── モード共通の値 ──
      ここに置くのは、モードが読んで使う「値」だけにする。
      レイアウトの指定そのものを書くと、上書き漏れが不具合になる。 */
+  /*
+   * 組み上がるまで本文を見せない。
+   *
+   * サーバーが返した本文は、モードが組み立てるより先に塗られる。実測では
+   * 塗りが1652ms、組み上がりが2062msで、その約400msのあいだ、寸法の入って
+   * いない本文がそのまま見えていた。44万字の作品では大量の文字が現れる。
+   *
+   * display: none ではなく visibility にする。組み立てには実測が要るので、
+   * 場所を占めたまま隠す必要がある
+   */
+  #reader:not([data-ready]) {
+    visibility: hidden;
+  }
+
   #reader {
     /* 余白は本文の文字を基準にする。文字サイズを変えても比率が保たれる。
        rem はルート要素基準なので本文に連動しない */
