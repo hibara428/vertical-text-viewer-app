@@ -117,6 +117,9 @@ const DEFAULT_MODE = "vertical-page";
     current = next;
 
     reader.dataset.mode = id;
+    // 縦書きの扉はモードをまたいで同じなので、共通の目印で掛ける
+    if (next.vertical) reader.dataset.vertical = "";
+    else delete reader.dataset.vertical;
     for (const b of buttons) b.setAttribute("aria-pressed", String(b.dataset.mode === id));
     try {
       localStorage.setItem(KEY, id);
@@ -259,6 +262,38 @@ const DEFAULT_MODE = "vertical-page";
     margin: 0;
     margin-block-end: 3em;
     font-size: var(--author-size);
+  }
+
+  /* ── 縦書きの扉 ──
+     縦書きの3モードで同じ体裁。文字を大きくすると行の位置がずれるため、
+     大きさは本文のままにし、字下げだけで作る。
+     縦書きかどうかはモード自身が申告し、Reader が目印を持たせる */
+  #reader[data-vertical] .work-title {
+    /* 行頭(縦書きでは上)から二文字ぶん下げる */
+    text-indent: 2em;
+  }
+  #reader[data-vertical] .work-author {
+    /* 行末(縦書きでは下)にそろえ、そこから二文字ぶん空ける */
+    text-align: end;
+    padding-inline-end: 2em;
+    margin-block-end: 1em;
+  }
+  /* 著者名と本文のあいだに一行ぶん空ける */
+  #reader[data-vertical] .work-author::after {
+    content: "";
+    display: block;
+    block-size: 1em;
+  }
+
+  /* ── 送りのカーソル ──
+     画面の左右で送るモードが data-side を持たせる。動く向きを矢印で示す。
+     w-resize などの標準カーソルはリサイズの見た目で、移動には読めない。
+     矢印は白で縁取り、本文の上でも輪郭が見えるようにしている */
+  #reader[data-side="next"] {
+    cursor: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2724%27%20height%3D%2724%27%20viewBox%3D%270%200%2024%2024%27%3E%3Cpath%20d%3D%27M20%2012H6M12%206l-6%206%206%206%27%20fill%3D%27none%27%20stroke%3D%27%23fff%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%2F%3E%3Cpath%20d%3D%27M20%2012H6M12%206l-6%206%206%206%27%20fill%3D%27none%27%20stroke%3D%27%231a1a1a%27%20stroke-width%3D%272.5%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%2F%3E%3C%2Fsvg%3E") 12 12, w-resize;
+  }
+  #reader[data-side="prev"] {
+    cursor: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2724%27%20height%3D%2724%27%20viewBox%3D%270%200%2024%2024%27%3E%3Cpath%20d%3D%27M4%2012h14M12%206l6%206-6%206%27%20fill%3D%27none%27%20stroke%3D%27%23fff%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%2F%3E%3Cpath%20d%3D%27M4%2012h14M12%206l6%206-6%206%27%20fill%3D%27none%27%20stroke%3D%27%231a1a1a%27%20stroke-width%3D%272.5%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%2F%3E%3C%2Fsvg%3E") 12 12, e-resize;
   }
 
   /* 底本情報。本文の続きとして小さく組む。

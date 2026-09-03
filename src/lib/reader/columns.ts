@@ -1,3 +1,4 @@
+import { frameHeight, measure } from "./metrics";
 import type { ModeContext, ReaderMode } from "./mode";
 import { buildIndex, findFirst, rangeAt, type TextIndex } from "./text-index";
 
@@ -98,23 +99,21 @@ const layout = (s: State) => {
   const rs = getComputedStyle(reader);
   const bs = getComputedStyle(body);
 
-  const advance = parseFloat(bs.fontSize) + (parseFloat(bs.letterSpacing) || 0);
-  const leading = parseFloat(bs.lineHeight);
   const gap = parseFloat(bs.columnGap) || 0;
   const visible = parseFloat(bs.getPropertyValue("--visible-bands")) || 2;
 
   // 帯の高さ(＝字詰め)。画面に帯が指定数ぶん収まる大きさにする。
   // 上下の余白は巻きはじめと巻きおわりにしか出ないので、ここでは引かない
-  const chrome = document.querySelector<HTMLElement>(".chrome");
-  const screen = window.innerHeight - (chrome?.offsetHeight ?? 0);
+  const screen = frameHeight();
+  const { advance, leading } = measure(body, screen);
   const bandH = Math.floor((screen - gap * (visible - 1)) / visible / advance) * advance;
 
   // 帯の幅(＝行数)。画面の幅を使い切ると文字が端まで届くので、本文の読みやすい
   // 幅(--measure)で頭打ちにする。ページ・ブログと同じ幅になり、余ったぶんは
   // CSS の margin: 0 auto が左右へ振り分ける
   const room = reader.clientWidth - parseFloat(rs.paddingLeft) - parseFloat(rs.paddingRight);
-  const measure = parseFloat(bs.getPropertyValue("--measure")) * parseFloat(bs.fontSize);
-  const bandW = Math.floor(Math.min(room, measure || room) / leading) * leading;
+  const readable = parseFloat(bs.getPropertyValue("--measure")) * parseFloat(bs.fontSize);
+  const bandW = Math.floor(Math.min(room, readable || room) / leading) * leading;
 
   // 1回目。高さを1帯ぶんにして組み、溢れた分から帯の数を知る。
   // 帯が何本になるかは組んでみないと分からないので、二度組むしかない
@@ -140,6 +139,7 @@ const layout = (s: State) => {
 
 export const columnsMode: ReaderMode = {
   id: "vertical-columns",
+  vertical: true,
 
   mount(ctx) {
     const s: State = {

@@ -17,6 +17,11 @@ export type ModeContext = {
 export type ReaderMode = {
   /** data-mode の値。ボタンの識別にも使う */
   id: string;
+  /**
+   * 縦書きか。扉(作品名・著者名)の体裁が縦書きの3モードで同じなので、
+   * それを掛ける目印として Reader が #reader に持たせる
+   */
+  vertical?: boolean;
   /** 表示を組み立て、読み始めの位置に置く */
   mount(ctx: ModeContext): void;
   /**

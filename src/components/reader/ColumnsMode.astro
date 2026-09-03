@@ -32,19 +32,4 @@
     column-fill: auto;
   }
 
-  /* 扉。縦書きでは文字を大きくすると行の位置がずれるため、大きさは本文のままにし、
-     字下げだけで体裁を作る */
-  #reader[data-mode="vertical-columns"] .work-title {
-    text-indent: 2em;
-  }
-  #reader[data-mode="vertical-columns"] .work-author {
-    text-align: end;
-    padding-inline-end: 2em;
-    margin-block-end: 1em;
-  }
-  #reader[data-mode="vertical-columns"] .work-author::after {
-    content: "";
-    display: block;
-    block-size: 1em;
-  }
 </style>
