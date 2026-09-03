@@ -21,15 +21,15 @@ type Props = {
 };
 const { bodyHtml, title, author, colophon, cardUrl } = Astro.props;
 
-/** 読み方モード。並びは送り方の刻みが細かい順にしている */
+/** 読み方モード。既定を先頭に置き、縦書きを先、横書きを最後にする */
 const MODES = [
-  { id: "vertical-page", label: "ページ", ready: true },
   { id: "vertical-scroll-x", label: "巻物", ready: true },
+  { id: "vertical-page", label: "ページ", ready: true },
   { id: "vertical-columns", label: "縦段組", ready: true },
   { id: "horizontal", label: "ブログ", ready: true },
 ] as const;
 
-const DEFAULT_MODE = "vertical-page";
+const DEFAULT_MODE = "vertical-scroll-x";
 ---
 
 <!--
