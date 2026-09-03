@@ -5,8 +5,11 @@
  * 場所として空けておく。縦書きは右から左へ進むので、左が「先へ」になる。
  *
  * ページと巻物が同じ操作を持つ。片方だけ直すと操作感がずれるため一本化する。
- * **スマホでは操作がまるごと入れ替わる。** 触る操作を足すのはこのファイル。
  * 各モードは「先へ」「前へ」を受け取るだけで、押され方を知らなくてよい。
+ *
+ * **どちら側かは押された座標からその場で求める。** カーソルの向きを決めるために
+ * data-side も持たせているが、送りの判断には使わない。指で触る画面では
+ * カーソルが動かないので、data-side を当てにすると送れなくなる。
  */
 
 /** どちら側にいるか。カーソルの向きは CSS がこれを見て決める */
@@ -28,6 +31,7 @@ export const attachTurnZones = ({ reader, go }: Options) => {
     return undefined;
   };
 
+  // カーソルの向きを決めるためだけに持たせる。送りの判断には使わない
   const onMove = (e: MouseEvent) => {
     const side = sideAt(e.clientX);
     if (side) reader.dataset.side = side;
@@ -38,14 +42,14 @@ export const attachTurnZones = ({ reader, go }: Options) => {
   // click 自体は発生するので、連打はそのまま連続の送りになる。
   // 真ん中はダブルクリックで単語を選べるまま残す
   const onDown = (e: MouseEvent) => {
-    if (reader.dataset.side && e.detail >= 2) e.preventDefault();
+    if (sideAt(e.clientX) && e.detail >= 2) e.preventDefault();
   };
 
   const onClick = (e: MouseEvent) => {
-    // リンクと、文字を選ぼうとしている操作は邪魔しない
-    if ((e.target as Element).closest("a")) return;
+    // リンクや操作の上、文字を選ぼうとしている操作は邪魔しない
+    if ((e.target as Element).closest("a, button")) return;
     if (window.getSelection()?.toString()) return;
-    const side = reader.dataset.side as Side | undefined;
+    const side = sideAt(e.clientX);
     if (side) go(side);
   };
 

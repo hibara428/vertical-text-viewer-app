@@ -1,4 +1,4 @@
-import { frameHeight, measure } from "./metrics";
+import { FIT_SLACK, frameHeight, measure } from "./metrics";
 import type { ModeContext, ReaderMode } from "./mode";
 import { buildIndex, findFirst, rangeAt, type TextIndex } from "./text-index";
 
@@ -118,7 +118,8 @@ const layout = (s: State) => {
   // 1回目。高さを1帯ぶんにして組み、溢れた分から帯の数を知る。
   // 帯が何本になるかは組んでみないと分からないので、二度組むしかない
   body.style.overflow = "hidden";
-  body.style.blockSize = `${bandW}px`;
+  // 帯にも少し余裕を持たせる。ちょうどだと最後の1行が入らない帯ができる
+  body.style.blockSize = `${bandW + FIT_SLACK}px`;
   body.style.inlineSize = `${bandH}px`;
   body.style.columnWidth = `${bandH}px`;
   body.style.removeProperty("column-count");

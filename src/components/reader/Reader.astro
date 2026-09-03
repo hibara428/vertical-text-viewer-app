@@ -54,15 +54,30 @@ const DEFAULT_MODE = "vertical-page";
 </div>
 
 <template id="reader-controls">
-  <nav class="modes" aria-label="読み方">
-    {
-      MODES.filter((m) => m.ready).map((m) => (
-        <button type="button" data-mode={m.id} aria-pressed="false">
-          {m.label}
-        </button>
-      ))
-    }
-  </nav>
+  {/*
+    読書中の設定はまとめて畳んでおく。狭い画面ではボタンを並べる幅がなく、
+    広い画面でも読書の邪魔になる。読み方以外の設定もここへ足していく
+  */}
+  <div class="controls">
+    <button type="button" class="menu-button" aria-expanded="false" aria-controls="reader-menu">
+      <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 7h16M4 12h16M4 17h16" />
+      </svg>
+      <span class="label">設定</span>
+    </button>
+    <div class="menu" id="reader-menu" hidden>
+      <p class="menu-heading">読み方</p>
+      <nav class="modes" aria-label="読み方">
+        {
+          MODES.filter((m) => m.ready).map((m) => (
+            <button type="button" data-mode={m.id} aria-pressed="false">
+              {m.label}
+            </button>
+          ))
+        }
+      </nav>
+    </div>
+  </div>
 </template>
 
 <!-- モードごとのレイアウト -->
@@ -72,6 +87,7 @@ const DEFAULT_MODE = "vertical-page";
 <BlogMode />
 
 <script>
+  import { frameHeight } from "../../lib/reader/metrics";
   import type { ModeContext, ReaderMode } from "../../lib/reader/mode";
   import { blogMode } from "../../lib/reader/blog";
   import { columnsMode } from "../../lib/reader/columns";
@@ -97,6 +113,25 @@ const DEFAULT_MODE = "vertical-page";
 
   const buttons = document.querySelectorAll<HTMLButtonElement>(".modes [data-mode]");
   const KEY = "reading-mode";
+
+  // 設定の開け閉め。開いているあいだだけ外側の操作を見る
+  const menuButton = document.querySelector<HTMLButtonElement>(".menu-button")!;
+  const menu = document.getElementById("reader-menu")!;
+  const setMenu = (open: boolean) => {
+    menu.hidden = !open;
+    menuButton.setAttribute("aria-expanded", String(open));
+  };
+  menuButton.addEventListener("click", (e) => {
+    e.stopPropagation(); // 送りのクリックと二重にしない
+    setMenu(menu.hidden);
+  });
+  // 外を押したときと Esc で閉じる。読書に戻る動きを塞がない
+  document.addEventListener("click", (e) => {
+    if (!menu.hidden && !(e.target as Element).closest(".controls")) setMenu(false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !menu.hidden) setMenu(false);
+  });
 
   /**
    * モードを切り替える。
@@ -128,15 +163,35 @@ const DEFAULT_MODE = "vertical-page";
     }
 
     next.mount(ctx);
+    lastSize = `${frameHeight()}x${reader.clientWidth}`;
   };
 
-  for (const b of buttons) b.addEventListener("click", () => apply(b.dataset.mode!));
+  for (const b of buttons) {
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      apply(b.dataset.mode!);
+      setMenu(false);
+    });
+  }
 
-  // 画面の大きさが変わると1行に入る文字数も変わるため、測り直す
+  /*
+   * 画面の大きさが変わると1行に入る文字数も変わるため、測り直す。
+   *
+   * ただし**寸法が変わっていなければ組み直さない**。組み直すこと自体が
+   * 巻物の文字出しを打ち切り、読書位置を計算し直す。スマホではアドレスバーの
+   * 伸縮で resize が飛んでくるが、高さは svh で測っているので値は変わらない
+   */
   let resizing: number | undefined;
+  let lastSize = "";
+  const relayout = () => {
+    const size = `${frameHeight()}x${reader.clientWidth}`;
+    if (size === lastSize) return;
+    lastSize = size;
+    current?.resize?.(ctx);
+  };
   window.addEventListener("resize", () => {
     clearTimeout(resizing);
-    resizing = window.setTimeout(() => current?.resize?.(ctx), 200);
+    resizing = window.setTimeout(relayout, 200);
   });
 
   let saved: string | null = null;
@@ -152,25 +207,83 @@ const DEFAULT_MODE = "vertical-page";
 </script>
 
 <style is:global>
-  /* ── モード選択 ── */
-  .modes {
-    display: flex;
-    gap: 0.4rem;
-    align-items: center;
+  /* ── 読書中の設定 ── */
+  .controls {
+    position: relative;
+    justify-self: end;
     font-family: "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
-    font-size: 0.8rem;
   }
-  .modes button {
-    padding: 0.3rem 0.7rem;
+  .menu-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.35rem 0.6rem;
     border: 1px solid var(--line);
     border-radius: 4px;
     background: #fff;
     font: inherit;
+    font-size: 0.8rem;
     color: inherit;
     cursor: pointer;
   }
-  .modes button:hover {
+  .menu-button:hover,
+  .menu-button[aria-expanded="true"] {
     border-color: var(--accent);
+  }
+  .menu-button .mark {
+    inline-size: 1.15em;
+    block-size: 1.15em;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+  /* 狭い画面では文字を落としてアイコンだけにする */
+  @media (max-width: 640px) {
+    .menu-button .label {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+  }
+
+  .menu {
+    position: absolute;
+    inset-inline-end: 0;
+    inset-block-start: calc(100% + 0.4rem);
+    min-inline-size: 11rem;
+    padding: 0.6rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 4px 16px rgb(0 0 0 / 0.08);
+  }
+  .menu-heading {
+    margin: 0 0 0.4rem;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+
+  .modes {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+  }
+  .modes button {
+    padding: 0.4rem 0.6rem;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+  .modes button:hover {
+    border-color: var(--line);
   }
   .modes button[aria-pressed="true"] {
     background: var(--accent);
@@ -201,13 +314,21 @@ const DEFAULT_MODE = "vertical-page";
     --measure: 38em;
     /* 行間。縦書きは行が横に並ぶため、詰めすぎると隣の行と混ざる */
     --leading: 1.9;
+    /* 読書用に本文を大きく取る */
+    --body-size: 1.125rem;
+    /*
+     * 1行ぶんの太さ。**rem で持つ**。
+     *
+     * 空きを行の整数倍にそろえるのに使う。em だと使う場所の文字サイズが
+     * 基準になり、底本(0.72em)の中では別の長さになってしまう
+     */
+    --line: calc(var(--leading) * var(--body-size));
     /* 1紙面の行数。紙面の幅はこれと行送りの掛け算で決まるので、文字や行間を
        変えても行数は変わらない。ページと巻物で同じ分量にするため共通に置く */
     --page-lines: 20;
 
     font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
-    /* 読書用に本文を大きく取る */
-    font-size: 1.125rem;
+    font-size: var(--body-size);
     line-height: var(--leading);
     /* 均等割り。指定しないと禁則で送られた文字のぶん行末が不揃いになる。
        余りを字間へ配るのでその行はマス目から外れるが、紙の組版も同じことをする */
@@ -215,6 +336,16 @@ const DEFAULT_MODE = "vertical-page";
   }
   .body p {
     margin: 0;
+    /*
+     * 段落の1行だけが紙面や帯をまたぐのを許す。
+     *
+     * Chrome の既定は 2 で、孤立行を避けるために行を次の紙面へ送り出す。
+     * その結果、紙面ごとに18〜20行とばらついていた。日本語の書籍は版面の
+     * 行数が必ず揃っており、孤立行は組版の段階で追い込み・追い出しをして
+     * 避ける。ブラウザにその調整はできないので、揃う方を採る
+     */
+    orphans: 1;
+    widows: 1;
   }
   .body rt {
     font-size: 0.5em;
@@ -236,7 +367,7 @@ const DEFAULT_MODE = "vertical-page";
   }
   /* 空行(場面転換)の間隔。縦横どちらの組みでも進行方向に空ける */
   .body .gap {
-    block-size: 1.9em;
+    block-size: var(--line);
   }
 
   /* 字下げ。縦書きでは行頭が上、横書きでは左になるが、どちらも「行の始まり」
@@ -276,13 +407,14 @@ const DEFAULT_MODE = "vertical-page";
     /* 行末(縦書きでは下)にそろえ、そこから二文字ぶん空ける */
     text-align: end;
     padding-inline-end: 2em;
-    margin-block-end: 1em;
-  }
-  /* 著者名と本文のあいだに一行ぶん空ける */
-  #reader[data-vertical] .work-author::after {
-    content: "";
-    display: block;
-    block-size: 1em;
+    /*
+     * 本文とのあいだに一行ぶん空ける。
+     *
+     * **行送りの整数倍にする。** 半端があると、以降の行がすべてマス目から
+     * ずれ、紙面に入る行数もひとつ減る。実測では 1em(0.53行)を2つ重ねて
+     * 1.06行になっており、扉のある紙面だけ行数が合わなかった
+     */
+    margin-block-end: var(--line);
   }
 
   /* ── 送りのカーソル ──
@@ -299,8 +431,9 @@ const DEFAULT_MODE = "vertical-page";
   /* 底本情報。本文の続きとして小さく組む。
      区切り線は進行方向の手前側に引くため、縦書きでは縦線、横書きでは横線になる */
   .body .colophon {
-    margin-block-start: 4em;
-    padding-block-start: 3em;
+    /* 空きは行送りの整数倍。半端があると以降の行がマス目からずれる */
+    margin-block-start: calc(var(--line) * 2);
+    padding-block-start: var(--line);
     border-block-start: 1px solid var(--line);
     font-size: 0.72em;
     color: var(--muted);

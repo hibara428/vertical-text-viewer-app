@@ -2,6 +2,7 @@
 // 作品ページ。リクエストのたびにエッジで本文を取得・パースする。
 import { env } from "cloudflare:workers";
 import Reader from "../../components/reader/Reader.astro";
+import SiteName from "../../components/SiteName.astro";
 import { loadWorkText } from "../../lib/content/work-text";
 import { findWork, type Person } from "../../lib/content/index-lookup";
 import people from "../../data/index/people.json";
@@ -42,20 +43,8 @@ const author = credits.find((c) => c.role === "著者") ?? credits[0];
       cardUrl={work.cardUrl}
     >
       <header class="chrome" slot="chrome">
-        <a href="/" class="home">青空文庫ビューアー</a>
-        <div class="work">
-          <h1>{work.title}</h1>
-          <span class="credits">
-            {
-              credits.map((c) => (
-                <span>
-                  <a href={`/authors/${c.personId}`}>{c.name}</a>
-                  {c.role !== "著者" && `(${c.role})`}
-                </span>
-              ))
-            }
-          </span>
-        </div>
+        <SiteName compact />
+        <p class="work">{work.title}</p>
       </header>
     </Reader>
 
@@ -82,53 +71,31 @@ const author = credits.find((c) => c.role === "著者") ?? credits[0];
         color: var(--accent);
       }
 
-      /* 読書中も操作できるよう画面上部に留める */
+      /* 読書中も操作できるよう画面上部に留める。
+         左にサイト名、中央に作品名、右に操作。左右を同じ幅にすることで
+         作品名がきっちり中央に来る。狭い画面では作品名だけが縮む */
       .chrome {
         position: sticky;
         top: 0;
-        z-index: 1;
-        display: flex;
+        z-index: 2;
+        display: grid;
+        grid-template-columns: 1fr minmax(0, auto) 1fr;
         gap: 0.9rem;
         align-items: center;
-        flex-wrap: wrap;
         padding: 0.6rem 1rem;
         border-bottom: 1px solid var(--line);
         background: #fff;
       }
-      /* 左にサイト名、中央に作品情報、右にビューア操作 */
-      /* トップのヘッダーと同じ体裁にそろえる */
-      .chrome .home {
-        font-weight: 600;
-        text-decoration: none;
-        color: var(--ink);
-        white-space: nowrap;
-      }
-      /* 作品情報は中央に置き、本文と同じ明朝で組む */
+      /* 作品名は本文と同じ明朝で組む。入りきらなければ末尾を省く */
       .chrome .work {
-        display: flex;
-        gap: 0.6rem;
-        align-items: baseline;
-        justify-content: center;
-        flex-wrap: wrap;
-        text-align: center;
-        font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
-      }
-      /* 左右のブロックを同じ幅にして、作品情報を画面中央にそろえる */
-      .chrome .home,
-      .chrome .modes {
-        flex: 1 1 0;
-      }
-      .chrome .modes {
-        justify-content: flex-end;
-      }
-      .chrome h1 {
         margin: 0;
+        min-width: 0;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
         font-size: 1.05rem;
-      }
-      .chrome .credits {
-        display: flex;
-        gap: 0.5rem;
-        font-size: 0.85rem;
       }
 
     </style>

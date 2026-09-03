@@ -1,5 +1,5 @@
 import { attachTurnZones } from "./input";
-import { frameHeight, measure } from "./metrics";
+import { FIT_SLACK, frameHeight, measure } from "./metrics";
 import type { ModeContext, ReaderMode } from "./mode";
 import { buildIndex, findFirst, rangeAt, type TextIndex } from "./text-index";
 
@@ -74,8 +74,10 @@ const layout = (s: State) => {
   s.win.style.height = `${pageH}px`;
 
   // block方向(＝横)がページの幅。ここで折り返す。
-  // inline方向(＝縦)がページの高さ。溢れた段は下へ積まれる
-  body.style.blockSize = `${pageW}px`;
+  // inline方向(＝縦)がページの高さ。溢れた段は下へ積まれる。
+  // 窓は N行ぶんちょうど、本文はそれより少し広くする。余裕がないと最後の
+  // 1行が入らない紙面ができる。余りは紙面の奥(左端)に出るので窓が隠す
+  body.style.blockSize = `${pageW + FIT_SLACK}px`;
   body.style.inlineSize = `${pageH}px`;
   body.style.columnWidth = `${pageH}px`;
 

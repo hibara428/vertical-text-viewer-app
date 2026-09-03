@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import SiteName from "../components/SiteName.astro";
 
 type Props = { title: string; description?: string };
 const { title, description } = Astro.props;
@@ -15,7 +16,7 @@ const siteName = "青空文庫ビューアー";
   </head>
   <body>
     <header class="site-header">
-      <a href="/" class="site-name">{siteName}</a>
+      <SiteName />
     </header>
     <main>
       <slot />
@@ -48,12 +49,6 @@ const siteName = "青空文庫ビューアー";
         border-bottom: 1px solid var(--line);
         background: #fff;
       }
-      .site-name {
-        font-weight: 600;
-        text-decoration: none;
-        color: var(--ink);
-      }
-
       main {
         max-width: 48rem;
         margin-inline: auto;

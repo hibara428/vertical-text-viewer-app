@@ -50,14 +50,24 @@ let detachInput: (() => void) | null = null;
  */
 let scrolling: number | undefined;
 
+/** 紙面の左右に覗かせる行数。前後が続いていることが見える最小限 */
+const PEEK_LINES = 1;
+
 /**
  * 1紙面の幅。送りの単位でもある。
  *
  * ページモードと同じ行数(--page-lines)で字詰めも同じなので、分量がそろう。
  * 段組みは使わない。横一列に伸びた本文では、紙面の切れ目は行数の掛け算だけで
- * 決まる。段組みを持ち込むと紙面が縦に積まれ、巻物でなくなる
+ * 決まる。段組みを持ち込むと紙面が縦に積まれ、巻物でなくなる。
+ *
+ * ただし画面が狭いとその行数が入らない。スマホでは紙面がはみ出して中央に
+ * 置けなくなるので、**収まる行数で頭打ちにする**。左右に1行ずつ覗く余地を
+ * 残すのは、前後が続いていることが見えるのが巻物の値打ちだから
  */
-const pageWidth = (s: State) => s.metrics.pageLines * s.metrics.leading;
+const pageWidth = (s: State) => {
+  const fits = Math.floor(s.ctx.reader.clientWidth / s.metrics.leading) - PEEK_LINES * 2;
+  return Math.max(1, Math.min(s.metrics.pageLines, fits)) * s.metrics.leading;
+};
 
 /** 隠しの形を決めるのに要る寸法 */
 const geometry = (s: State): RevealGeometry => ({ full: s.full, metrics: s.metrics });

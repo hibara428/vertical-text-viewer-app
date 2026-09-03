@@ -1,0 +1,58 @@
+---
+/**
+ * サイト名。トップへ戻るリンクを兼ねる。
+ *
+ * 全ページのヘッダーで使う。作品ページのヘッダーは読書画面の一部でもあるため、
+ * 狭い画面では文字を落としてアイコンだけにする(compact)。
+ */
+type Props = {
+  /** 狭い画面で文字を隠し、アイコンだけにする */
+  compact?: boolean;
+};
+const { compact = false } = Astro.props;
+---
+
+<a href="/" class:list={["site-name", { compact }]}>
+  {/*
+    縦書きの紙面。右の行から左へ、最後の行が短い。
+    青空文庫の作品を縦書きで読むという、このサイトの中身をそのまま形にしている
+  */}
+  <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="3.5" y="3.5" width="17" height="17" rx="2.5" />
+    <path d="M16.5 7v9M12.5 7v10M8.5 7v5" />
+  </svg>
+  <span class="label">青空文庫ビューアー</span>
+</a>
+
+<style is:global>
+  .site-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .site-name .mark {
+    /* 文字と同じ大きさに合わせ、線の色も文字から継ぐ */
+    inline-size: 1.35em;
+    block-size: 1.35em;
+    flex: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+  }
+
+  /* 狭い画面ではアイコンだけにする。ヘッダーで一番幅を食っていたのが文字のため */
+  @media (max-width: 640px) {
+    .site-name.compact .label {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+  }
+</style>
