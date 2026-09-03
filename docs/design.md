@@ -259,10 +259,17 @@ Cloudflare Workers に公開している。
 
 | | |
 |---|---|
-| URL | https://vertical-text-viewer-app.hibara428.workers.dev |
+| URL | https://viewer.hibara428.dev |
+| | https://vertical-text-viewer-app.hibara428.workers.dev(従来のURLも生かしている) |
 | プラン | Workers Paid。無料枠のCPU上限10msでは上位1〜2割の作品が落ちるため |
 | KV | `WORK_TEXT`(本文のキャッシュ)。`SESSION` は Astro が要求するもので、初回デプロイ時に wrangler が自動作成した |
 | アセット | 18,422ファイル / 76MB(圧縮1.2MB) |
+
+独自ドメインと `workers.dev` の有無は `wrangler.jsonc` の `routes` / `workers_dev` で決まる。コンソールでの操作は要らない。
+
+**ただし wrangler が読むのは `wrangler.jsonc` ではない。** ビルド時に `dist/server/wrangler.json` が生成され、そちらが使われる(`.wrangler/deploy/config.json` がその旨を指している)。設定を変えたら**必ずビルドし直す**こと。古い生成物のまま `wrangler deploy` すると、設定が反映されていないように見える。
+
+> この落とし穴で一度誤診した。`routes` を足した直後に古い生成物を見て「設定ファイルに書いても効かない」と結論し、`--domain` をデプロイコマンドに埋め込む回避策を入れかけた。ビルドし直せば `routes` も `workers_dev` も正しく引き継がれる。
 
 **アセットのファイル数が上限に近い。** Cloudflare の静的アセットは20,000ファイルまでで、いま18,422。うち**17,393(94%)が検索索引**で、青空文庫の作品が増えるたびに上限へ近づく。行き詰まったら索引の持ち方を変える必要がある。
 

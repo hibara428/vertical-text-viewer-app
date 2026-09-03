@@ -11,6 +11,17 @@
 	"observability": {
 		"enabled": true
 	},
+	// 公開先。ビルド時に dist/server/wrangler.json へ引き継がれ、
+	// wrangler はそちらを読む。編集したら必ずビルドし直すこと
+	"routes": [
+		{
+			"pattern": "viewer.hibara428.dev",
+			"custom_domain": true
+		}
+	],
+	// 独自ドメインを指定すると workers.dev の URL は既定で無効になる。
+	// 切り替えの猶予として、しばらく両方を生かしておく
+	"workers_dev": true,
 	// 取得・変換済みの本文を保存する。詳細は docs/design.md「キャッシュ」
 	"kv_namespaces": [
 		{
