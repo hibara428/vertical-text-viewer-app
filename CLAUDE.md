@@ -20,8 +20,10 @@ The point of the project is to build and compare several reading modes (horizont
 scroll/page-turn), and converge on a good one.
 
 Scope covers all public-domain Aozora Bunko works. Work text is fetched on demand at the edge
-via the jsDelivr mirror of `aozorabunko/aozorabunko`; browsing and search pages are statically
-generated. See `docs/design.md` for details.
+straight from `www.aozora.gr.jp` (the official zip) and cached in Workers KV; browsing and
+search pages are statically generated. Community mirrors were evaluated and rejected — they
+are dead or stale. See `docs/design.md` for details and for the rejected alternatives.
 
-Sibling project sharing conventions (content-as-files, no CMS, low-cost static hosting):
-[hibara428/hibara428-personal](https://github.com/hibara428/hibara428-personal) — Astro + Tailwind CSS + TypeScript, Cloudflare Pages.
+The author keeps a separate personal site sharing these conventions (content-as-files, no CMS,
+low-cost static hosting), built on Astro + Tailwind CSS + TypeScript and deployed to Cloudflare.
+Prefer the same stack choices here.
