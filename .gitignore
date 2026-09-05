@@ -14,8 +14,9 @@ pnpm-debug.log*
 
 
 # environment variables
-.env
-.env.production
+# Cloudflare のローカル用シークレットは .dev.vars に置く。実物は絶対に追跡しない
+.env*
+.dev.vars*
 
 # macOS-specific files
 .DS_Store
