@@ -31,6 +31,8 @@ npm run preview  # ビルド結果を Workers 上で確認
 npm run deploy   # ビルドして公開
 ```
 
+`main` への push でも自動で公開されます（Cloudflare Workers Builds）。
+
 生成物の作り直し（普段は不要）。
 
 ```sh

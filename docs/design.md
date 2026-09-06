@@ -277,6 +277,33 @@ Cloudflare Workers に公開している。
 npm run build && npx wrangler deploy
 ```
 
+### 自動デプロイ
+
+`main` への push で Cloudflare の Workers Builds がビルドして公開する。手元からの
+`npm run build && npx wrangler deploy` も引き続き使える。
+
+**この設定はダッシュボードにしか存在しない。** wrangler から設定する手段はなく、
+`wrangler.jsonc` の Custom Builds も Workers Builds には効かない。リポジトリから追えないため、
+入力した値をここに控えておく(Worker の Settings → Builds)。
+
+| 項目 | 値 |
+|---|---|
+| Git repository | `hibara428/vertical-text-viewer-app` |
+| Git branch | `main` |
+| Build command | `npm run build` |
+| Deploy command | `npx wrangler deploy`(既定) |
+| Non-production branch deploy command | `npx wrangler versions upload`(既定) |
+| Root directory | 空欄 |
+
+`main` 以外のブランチへの push ではバージョンがアップロードされるだけで、本番のトラフィックは動かない。
+
+**Build command を空にしてはいけない。** 上に書いたとおり wrangler が読むのはビルドで生成される
+`dist/server/wrangler.json` で、検索索引の生成も `npm run build` に含まれている。
+
+Node のバージョンは `.node-version`(24.20.0)が読まれる。ビルドイメージにあらかじめ入っているのは
+22.23.2 と 24.18.0 のため、24.20.0 は毎回ダウンロードされる。ビルド時間が気になるなら
+`.node-version` と `package.json` の `engines` を 24.18.0 に合わせるとキャッシュに乗る。
+
 ## ロードマップ
 
 1. **通信経路の検証** — 作品IDを決め打ちで zip取得→展開→変換→パース→表示(索引・KVなし)
