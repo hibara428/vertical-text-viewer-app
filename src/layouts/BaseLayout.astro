@@ -11,6 +11,9 @@ const siteName = "青空文庫ビューアー";
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {/* ヘッダーのサイト名と同じマーク。SVG を読めない古いブラウザには .ico を渡す */}
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <title>{title === siteName ? title : `${title} — ${siteName}`}</title>
     {description && <meta name="description" content={description} />}
   </head>

@@ -15,7 +15,8 @@ const { compact = false } = Astro.props;
 <a href="/" class:list={["site-name", { compact }]}>
   {/*
     縦書きの紙面。右の行から左へ、最後の行が短い。
-    青空文庫の作品を縦書きで読むという、このサイトの中身をそのまま形にしている
+    青空文庫の作品を縦書きで読むという、このサイトの中身をそのまま形にしている。
+    タブのアイコン(public/favicon.svg)も同じ絵。片方を描き直すときはもう片方も
   */}
   <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
     <rect x="3.5" y="3.5" width="17" height="17" rx="2.5" />
