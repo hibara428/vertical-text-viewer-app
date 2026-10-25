@@ -300,8 +300,8 @@ npm run build && npx wrangler deploy
 **Build command を空にしてはいけない。** 上に書いたとおり wrangler が読むのはビルドで生成される
 `dist/server/wrangler.json` で、検索索引の生成も `npm run build` に含まれている。
 
-Node のバージョンは `.node-version`(24.20.0)が読まれる。ビルドイメージにあらかじめ入っているのは
-22.23.2 と 24.18.0 のため、24.20.0 は毎回ダウンロードされる。ビルド時間が気になるなら
+Node のバージョンは `.node-version`(24.22.1)が読まれる。ビルドイメージにあらかじめ入っているのは
+22.23.2 と 24.18.0 のため、24.22.1 は毎回ダウンロードされる。ビルド時間が気になるなら
 `.node-version` と `package.json` の `engines` を 24.18.0 に合わせるとキャッシュに乗る。
 
 ## ロードマップ

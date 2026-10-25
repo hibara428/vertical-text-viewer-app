@@ -21,7 +21,7 @@ Astro + Cloudflare Workers。作品一覧と検索は静的生成し、本文は
 
 ## 開発
 
-Node 24.20.0（`.node-version` / `.mise.toml`）。
+Node 24.22.1 / npm 12.2.1（`.node-version` / `.mise.toml`）。
 
 ```sh
 npm install
