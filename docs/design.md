@@ -304,6 +304,18 @@ Node のバージョンは `.node-version`(24.22.1)が読まれる。ビルド�
 22.23.2 と 24.18.0 のため、24.22.1 は毎回ダウンロードされる。ビルド時間が気になるなら
 `.node-version` と `package.json` の `engines` を 24.18.0 に合わせるとキャッシュに乗る。
 
+### 依存の更新
+
+Dependabot が npm の依存を毎週土曜に見て PR を出す(`.github/dependabot.yml`)。脆弱性の修正 PR は
+それとは別に随時来る(リポジトリ設定の Dependabot security updates)。PR は Workers Builds の
+ビルドが通るかで確かめる。
+
+**`package.json` の `overrides` で miniflare の undici を `^7.30.1` に上書きしている。** wrangler が
+使う miniflare が undici を脆弱な 7.29.1 に固定していたため。undici が使われるのは `wrangler dev` /
+preview だけで、本番の Workers には入らない。Dependabot は上書きが要らなくなったことを教えてくれないので、
+wrangler の更新 PR が来たら miniflare の `dependencies` を見て、undici が 7.30.1 以上になっていれば
+`overrides` を消す。
+
 ## ロードマップ
 
 1. **通信経路の検証** — 作品IDを決め打ちで zip取得→展開→変換→パース→表示(索引・KVなし)
