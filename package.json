@@ -33,7 +33,7 @@
   "devDependencies": {
     "agent-browser": "^0.35.1",
     "pagefind": "^1.5.2",
-    "tsx": "^4.23.13"
+    "tsx": "^4.23.15"
   },
   "overrides": {
     "miniflare": {
