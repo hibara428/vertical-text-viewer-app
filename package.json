@@ -22,7 +22,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "astro": "^7.4.2",
     "tailwindcss": "^4.3.3",
-    "wrangler": "^4.127.1"
+    "wrangler": "^4.154.0"
   },
   "allowScripts": {
     "esbuild": true,
